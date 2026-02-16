@@ -1,4 +1,22 @@
 {
-  "name": "Cleaner",
-  "displayName": "Cleaner"
+  "expo": {
+    "name": "Cleaner",
+    "slug": "cleaner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cleaner"
+    },
+    "android": {
+      "package": "com.cleaner"
+    },
+    "plugins": [
+      "expo-dev-client"
+    ]
+  }
 }
