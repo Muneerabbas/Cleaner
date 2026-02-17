@@ -123,12 +123,11 @@ class DeviceStatsModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun openAppInfo(packageName: String) {
         try {
-            val activity = reactApplicationContext.currentActivity ?: return
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.parse("package:$packageName")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            activity.startActivity(intent)
+            startIntent(intent)
         } catch (e: Exception) {
             Log.e(TAG, "openAppInfo error", e)
         }
@@ -137,14 +136,18 @@ class DeviceStatsModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun openAppUninstall(packageName: String) {
         try {
-            val activity = reactApplicationContext.currentActivity ?: return
-            val intent = Intent(Intent.ACTION_DELETE).apply {
+            val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
                 data = Uri.parse("package:$packageName")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            activity.startActivity(intent)
+            startIntent(intent)
         } catch (e: Exception) {
             Log.e(TAG, "openAppUninstall error", e)
+            try {
+                // Fallback: open app details so user can uninstall manually.
+                openAppInfo(packageName)
+            } catch (_: Exception) {
+            }
         }
     }
 
@@ -217,6 +220,7 @@ class DeviceStatsModule(reactContext: ReactApplicationContext) :
         val ctx = reactApplicationContext
         val pm = ctx.packageManager
         val installed = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        val lastUsed = queryLastUsedMap()
 
         val ssm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             ctx.getSystemService(Context.STORAGE_STATS_SERVICE) as? StorageStatsManager
@@ -228,12 +232,13 @@ class DeviceStatsModule(reactContext: ReactApplicationContext) :
         } else null
 
         installed.forEach { appInfo ->
-            if (appInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0) return@forEach
             val pkg = appInfo.packageName
             try {
                 val map = Arguments.createMap()
                 map.putString("packageName", pkg)
                 map.putString("appName", pm.getApplicationLabel(appInfo).toString())
+                map.putBoolean("isSystem", (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0)
+                map.putDouble("lastTimeUsed", (lastUsed[pkg] ?: 0L).toDouble())
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && ssm != null && uuid != null) {
                     val storageStats = ssm.queryStatsForPackage(uuid, pkg, Process.myUserHandle())
@@ -276,5 +281,34 @@ class DeviceStatsModule(reactContext: ReactApplicationContext) :
             }
         }
         return arr
+    }
+
+    private fun queryLastUsedMap(): Map<String, Long> {
+        val out = mutableMapOf<String, Long>()
+        return try {
+            val usm = reactApplicationContext.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
+                ?: return out
+            val now = System.currentTimeMillis()
+            val from = now - 365L * 24 * 60 * 60 * 1000
+            val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_YEARLY, from, now)
+            stats?.forEach { s ->
+                val prev = out[s.packageName] ?: 0L
+                if (s.lastTimeUsed > prev) {
+                    out[s.packageName] = s.lastTimeUsed
+                }
+            }
+            out
+        } catch (_: Exception) {
+            out
+        }
+    }
+
+    private fun startIntent(intent: Intent) {
+        val activity = reactApplicationContext.currentActivity
+        if (activity != null) {
+            activity.startActivity(intent)
+        } else {
+            reactApplicationContext.startActivity(intent)
+        }
     }
 }

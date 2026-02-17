@@ -45,6 +45,7 @@ const MODE_CONFIG: Record<CleanerMode, { title: string; icon: string; iconColor:
   duplicates: { title: 'Duplicates', icon: 'content-copy', iconColor: '#82b1ff' },
   trash: { title: 'Trash', icon: 'delete-restore', iconColor: colors.danger },
   empty: { title: 'Empty Folders', icon: 'folder-off-outline', iconColor: '#b2a0ff' },
+  compress: { title: 'Compressor', icon: 'folder-zip-outline', iconColor: '#7cb342' },
 };
 
 export default function CleanerListScreen() {
@@ -68,6 +69,7 @@ export default function CleanerListScreen() {
   const isTrash = mode === 'trash';
   const isDuplicates = mode === 'duplicates';
   const isEmpty = mode === 'empty';
+  const isCompress = mode === 'compress';
 
   // ─── Permission ───
   const checkPermission = useCallback(async () => {
@@ -131,6 +133,11 @@ export default function CleanerListScreen() {
         case 'empty': {
           const r = await storageCleaner.scanEmptyFolders();
           setEmptyPaths(r); setItems([]); setDuplicateGroups([]);
+          break;
+        }
+        case 'compress': {
+          const r = await storageCleaner.scanCompressibleFiles(10 * 1024 * 1024, 600);
+          setItems(r); setDuplicateGroups([]); setEmptyPaths([]);
           break;
         }
       }
@@ -236,6 +243,45 @@ export default function CleanerListScreen() {
       },
     ]);
   }, [runScan, emptyPaths, displayList, selected, isEmpty]);
+
+  const handleCompress = useCallback(() => {
+    const paths = getSelectedPaths();
+    if (!paths.length) {
+      Alert.alert('Nothing selected', 'Select files to compress first.');
+      return;
+    }
+    Alert.alert(
+      'Compress Files',
+      `Create ZIP from ${paths.length} file(s)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Compress',
+          onPress: async () => {
+            setCleaning(true);
+            setError(null);
+            try {
+              const archiveName = `cleaner_${Date.now()}`;
+              const result = await storageCleaner.compressFiles(paths, archiveName);
+              const saved = Math.max(0, result.sourceBytes - result.archiveBytes);
+              Alert.alert(
+                'Compression Complete',
+                `Archive: ${result.archivePath}\n` +
+                  `Files: ${result.sourceFileCount}\n` +
+                  `Original: ${formatBytes(result.sourceBytes)}\n` +
+                  `Archive: ${formatBytes(result.archiveBytes)}\n` +
+                  `Saved: ${formatBytes(saved)}`
+              );
+            } catch (e) {
+              Alert.alert('Compression Error', e instanceof Error ? e.message : String(e));
+            } finally {
+              setCleaning(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [emptyPaths, displayList, selected, isEmpty]);
 
   // ─── Renders ───
   const renderHeader = () => (
@@ -462,7 +508,7 @@ export default function CleanerListScreen() {
                 </TouchableOpacity>
               ))}
 
-              {/* Normal File Items (junk, large, trash) */}
+              {/* Normal File Items (junk, large, trash, compress) */}
               {!isDuplicates && !isEmpty && displayList.map(f => (
                 <TouchableOpacity
                   key={f.path}
@@ -508,17 +554,31 @@ export default function CleanerListScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[styles.bottomBtn, styles.bottomBtnDelete]}
-              onPress={handleClean}
-              disabled={cleaning}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons name="delete-outline" size={18} color={colors.white} />
-              <Text style={styles.bottomBtnText}>
-                {cleaning ? 'Deleting...' : `Delete (${selectedCount}) · ${formatBytes(selectedSize)}`}
-              </Text>
-            </TouchableOpacity>
+            {isCompress ? (
+              <TouchableOpacity
+                style={[styles.bottomBtn, { backgroundColor: '#7cb342' }]}
+                onPress={handleCompress}
+                disabled={cleaning}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="folder-zip-outline" size={18} color={colors.white} />
+                <Text style={styles.bottomBtnText}>
+                  {cleaning ? 'Compressing...' : `Compress (${selectedCount}) · ${formatBytes(selectedSize)}`}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.bottomBtn, styles.bottomBtnDelete]}
+                onPress={handleClean}
+                disabled={cleaning}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="delete-outline" size={18} color={colors.white} />
+                <Text style={styles.bottomBtnText}>
+                  {cleaning ? 'Deleting...' : `Delete (${selectedCount}) · ${formatBytes(selectedSize)}`}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>

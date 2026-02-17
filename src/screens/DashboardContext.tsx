@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { requestStoragePermission } from '../utils/permissions';
 import {
   getAppsStorage,
@@ -19,6 +19,8 @@ type AppStorage = {
   appBytes: number;
   dataBytes: number;
   cacheBytes: number;
+  lastTimeUsed?: number;
+  isSystem?: boolean;
   iconBase64?: string;
 };
 
@@ -34,10 +36,10 @@ type DashboardState = {
   appsLoading: boolean;
   refreshing: boolean;
   refreshAll: () => Promise<void>;
-  refreshAppsStorage: () => Promise<void>;
+  refreshAppsStorage: (force?: boolean) => Promise<void>;
   clearJunk: () => Promise<void>;
   addSavedBytes: (bytes: number) => Promise<void>;
-  recheckUsageAccess: () => Promise<void>;
+  recheckUsageAccess: () => Promise<boolean>;
   openUsageAccessSettings: () => void;
   openAppInfo: (pkg: string) => void;
   openAppUninstall: (pkg: string) => void;
@@ -67,7 +69,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [appsLoading, setAppsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const refreshAll = async () => {
+  const refreshAll = useCallback(async () => {
     setRefreshing(true);
     try {
       await requestStoragePermission();
@@ -90,25 +92,20 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  const refreshAppsStorage = async () => {
-    if (!usageAccess) return;
+  const refreshAppsStorage = useCallback(async (force = false) => {
+    if (!force && !usageAccess) return;
     setAppsLoading(true);
     try {
       const list = await getAppsStorage();
-      const sorted = [...list].sort(
-        (a, b) =>
-          b.appBytes + b.dataBytes + b.cacheBytes -
-          (a.appBytes + a.dataBytes + a.cacheBytes),
-      );
-      setAppsStorage(sorted);
+      setAppsStorage(list);
     } finally {
       setAppsLoading(false);
     }
-  };
+  }, [usageAccess]);
 
-  const clearJunk = async () => {
+  const clearJunk = useCallback(async () => {
     if (clearing) return;
     setClearing(true);
     setClearProgress(0);
@@ -125,14 +122,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setClearing(false);
     }
-  };
+  }, [clearing]);
 
-  const addSavedBytes = async (bytes: number) => {
+  const addSavedBytes = useCallback(async (bytes: number) => {
     const next = await addSavedTodayBytes(bytes);
     setSavedTodayBytes(next);
-  };
+  }, []);
 
-  const recheckUsageAccess = async () => {
+  const recheckUsageAccess = useCallback(async () => {
     try {
       const hasAccess = await hasUsageAccess();
       setUsageAccess(hasAccess);
@@ -140,36 +137,60 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         const apps = await getUnusedApps(30);
         setUnusedCount(apps.length);
         setUnusedApps(apps.slice(0, 5));
+      } else {
+        setUnusedCount(null);
+        setUnusedApps([]);
       }
+      return hasAccess;
     } catch {
       // ignore
+      return false;
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshAll().catch(() => {});
-  }, []);
+  }, [refreshAll]);
 
-  const value: DashboardState = {
-    storage,
-    usageAccess,
-    unusedCount,
-    unusedApps,
-    savedTodayBytes,
-    clearing,
-    clearProgress,
-    appsStorage,
-    appsLoading,
-    refreshing,
-    refreshAll,
-    refreshAppsStorage,
-    clearJunk,
-    addSavedBytes,
-    recheckUsageAccess,
-    openUsageAccessSettings,
-    openAppInfo,
-    openAppUninstall,
-  };
+  const value: DashboardState = useMemo(
+    () => ({
+      storage,
+      usageAccess,
+      unusedCount,
+      unusedApps,
+      savedTodayBytes,
+      clearing,
+      clearProgress,
+      appsStorage,
+      appsLoading,
+      refreshing,
+      refreshAll,
+      refreshAppsStorage,
+      clearJunk,
+      addSavedBytes,
+      recheckUsageAccess,
+      openUsageAccessSettings,
+      openAppInfo,
+      openAppUninstall,
+    }),
+    [
+      storage,
+      usageAccess,
+      unusedCount,
+      unusedApps,
+      savedTodayBytes,
+      clearing,
+      clearProgress,
+      appsStorage,
+      appsLoading,
+      refreshing,
+      refreshAll,
+      refreshAppsStorage,
+      clearJunk,
+      addSavedBytes,
+      recheckUsageAccess,
+    ],
+  );
 
   return (
     <DashboardContext.Provider value={value}>

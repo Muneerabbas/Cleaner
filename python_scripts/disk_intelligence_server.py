@@ -18,6 +18,7 @@ import asyncio
 import json
 import logging
 import os
+import socket
 import tempfile
 import threading
 import time
@@ -32,7 +33,7 @@ from typing import Any, Callable
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -104,6 +105,8 @@ def configure_logging(log_file: Path) -> logging.Logger:
 
 LOGGER = configure_logging(Path(tempfile.gettempdir()) / "disk_intel" / "server.log")
 APP_LOOP: asyncio.AbstractEventLoop | None = None
+CONNECT_URL = os.getenv("DISK_INTEL_CONNECT_URL", "")
+STARTUP_BANNER_PRINTED = False
 
 
 # ---------------------------- API Models ------------------------------------ #
@@ -148,6 +151,17 @@ class CleanupRequest(BaseModel):
 
 class UndoRequest(BaseModel):
     action_id: str
+
+
+class CleanupActionRequest(BaseModel):
+    snapshot_id: int | None = None
+    roots: list[str] = Field(default_factory=lambda: [str(Path.cwd())])
+    min_size: str = "500MB"
+    older_than_days: int = 180
+    limit: int = 2000
+    force_high_risk: bool = False
+    quarantine_mode: bool = True
+    confirm: bool = False
 
 
 # ---------------------------- Response Helpers ------------------------------ #
@@ -556,6 +570,7 @@ app = FastAPI(
 async def _on_startup():
     global APP_LOOP
     APP_LOOP = asyncio.get_running_loop()
+    ensure_startup_connect_banner()
 
 app.add_middleware(
     CORSMiddleware,
@@ -687,9 +702,28 @@ async def run_analysis(req: AnalyzeRequest):
         with engine_session(DB_PATH, CLASSIFIER_RULES, LOG_FILE) as eng:
             sid = resolve_snapshot_id(eng, req.snapshot_id)
             progress_cb({"phase": "analysis", "pct": 10.0, "snapshot_id": sid})
+            analyzer = DiskAnalyzer(eng.store, sid)
             report = eng.analyze_snapshot(sid, top_n=req.top_n, include_duplicates=req.include_duplicates)
+            progress_cb({"phase": "analysis", "pct": 55.0, "snapshot_id": sid})
+
+            # Return a richer default payload so clients can render a complete analysis view
+            # without chaining many additional API calls.
+            full_bundle = {
+                "snapshot_id": sid,
+                "summary": analyzer.summary(),
+                "largest_files": analyzer.largest_files(limit=req.top_n),
+                "folder_sizes": analyzer.folder_sizes(limit=req.top_n),
+                "type_distribution": analyzer.type_distribution(),
+                "extension_frequency": analyzer.extension_frequency(limit=max(req.top_n, 50)),
+                "pareto": analyzer.pareto_top_consumers(),
+                "size_histogram": analyzer.size_histogram(),
+                "large_old_default": analyzer.large_and_old_files(
+                    min_size=parse_size_to_bytes("500MB"), older_than_days=180, limit=max(req.top_n, 100)
+                ),
+                "report": report,
+            }
             progress_cb({"phase": "analysis", "pct": 100.0, "snapshot_id": sid})
-            return report
+            return full_bundle
 
     JOBS.submit(job, runner)
     return api_ok({"job_id": job.job_id}, meta={"type": "analysis"})
@@ -900,12 +934,225 @@ async def undo_cleanup(req: UndoRequest):
     return api_ok({"job_id": job.job_id}, meta={"type": "undo"})
 
 
+@app.post("/api/v1/actions/delete-duplicates", summary="Delete duplicate files (safe job wrapper)")
+async def action_delete_duplicates(req: CleanupActionRequest):
+    cleanup_req = CleanupRequest(
+        snapshot_id=req.snapshot_id,
+        mode="duplicates",
+        roots=req.roots,
+        limit=req.limit,
+        execute=True,
+        force_high_risk=req.force_high_risk,
+        quarantine_mode=req.quarantine_mode,
+        confirm=req.confirm,
+    )
+    return await run_cleanup(cleanup_req)
+
+
+@app.post("/api/v1/actions/delete-large-old", summary="Delete large and old files (safe job wrapper)")
+async def action_delete_large_old(req: CleanupActionRequest):
+    cleanup_req = CleanupRequest(
+        snapshot_id=req.snapshot_id,
+        mode="large-old",
+        roots=req.roots,
+        min_size=req.min_size,
+        older_than_days=req.older_than_days,
+        limit=req.limit,
+        execute=True,
+        force_high_risk=req.force_high_risk,
+        quarantine_mode=req.quarantine_mode,
+        confirm=req.confirm,
+    )
+    return await run_cleanup(cleanup_req)
+
+
+@app.post("/api/v1/actions/clean-logs-temp", summary="Delete logs and temp files (safe job wrapper)")
+async def action_clean_logs_temp(req: CleanupActionRequest):
+    cleanup_req = CleanupRequest(
+        snapshot_id=req.snapshot_id,
+        mode="logs-temp",
+        roots=req.roots,
+        limit=req.limit,
+        execute=True,
+        force_high_risk=req.force_high_risk,
+        quarantine_mode=req.quarantine_mode,
+        confirm=req.confirm,
+    )
+    return await run_cleanup(cleanup_req)
+
+
 # ------------------------------ Health & Root ------------------------------- #
+
+
+@app.get("/api/v1/actions", summary="List available connected actions")
+async def list_actions():
+    return api_ok(
+        {
+            "actions": [
+                {
+                    "id": "health",
+                    "label": "Health Check",
+                    "kind": "analysis",
+                    "endpoint": "/healthz",
+                    "destructive": False,
+                },
+                {
+                    "id": "scan",
+                    "label": "Start Scan",
+                    "kind": "analysis",
+                    "endpoint": "/api/v1/analysis/scans/start",
+                    "destructive": False,
+                },
+                {
+                    "id": "analysis",
+                    "label": "Run Analysis",
+                    "kind": "analysis",
+                    "endpoint": "/api/v1/analysis/run",
+                    "destructive": False,
+                },
+                {
+                    "id": "duplicates",
+                    "label": "Find Duplicates",
+                    "kind": "analysis",
+                    "endpoint": "/api/v1/analysis/duplicates/run",
+                    "destructive": False,
+                },
+                {
+                    "id": "cleanup_dry",
+                    "label": "Cleanup Dry-Run",
+                    "kind": "cleanup",
+                    "endpoint": "/api/v1/cleanup/run",
+                    "destructive": False,
+                },
+                {
+                    "id": "delete_duplicates",
+                    "label": "Delete Duplicates",
+                    "kind": "cleanup",
+                    "endpoint": "/api/v1/actions/delete-duplicates",
+                    "destructive": True,
+                },
+                {
+                    "id": "delete_large_old",
+                    "label": "Delete Large + Old",
+                    "kind": "cleanup",
+                    "endpoint": "/api/v1/actions/delete-large-old",
+                    "destructive": True,
+                },
+                {
+                    "id": "clean_logs_temp",
+                    "label": "Clean Logs/Temp",
+                    "kind": "cleanup",
+                    "endpoint": "/api/v1/actions/clean-logs-temp",
+                    "destructive": True,
+                },
+                {
+                    "id": "undo_cleanup",
+                    "label": "Undo Cleanup",
+                    "kind": "cleanup",
+                    "endpoint": "/api/v1/cleanup/undo",
+                    "destructive": False,
+                },
+            ]
+        }
+    )
 
 
 @app.get("/healthz", summary="Liveness endpoint")
 async def healthz():
     return api_ok({"service": "disk-intelligence-server", "healthy": True})
+
+
+@app.get("/api/v1/connect", summary="Get connect URL for mobile pairing")
+async def get_connect_url(request: Request):
+    return api_ok({"connect_url": request_connect_url(request)})
+
+
+def build_qr_payload(connect_url: str) -> tuple[dict[str, Any], list[str]]:
+    payload: dict[str, Any] = {
+        "connect_url": connect_url,
+        "qr_ascii": None,
+        "qr_png_base64": None,
+        "qr_data_url": None,
+    }
+    warnings: list[str] = []
+
+    try:
+        import base64
+        import io
+
+        import qrcode
+
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(connect_url)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+        ascii_lines = []
+        for row in matrix:
+            ascii_lines.append("".join("██" if cell else "  " for cell in row))
+        payload["qr_ascii"] = "\n".join(ascii_lines)
+
+        img = qrcode.make(connect_url)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        payload["qr_png_base64"] = b64
+        payload["qr_data_url"] = f"data:image/png;base64,{b64}"
+    except Exception:
+        warnings.append("Install qrcode for QR payloads: python3 -m pip install qrcode[pil]")
+
+    return payload, warnings
+
+
+@app.get("/api/v1/connect/qr", summary="Get connect URL + QR payload for pairing")
+async def get_connect_qr(request: Request):
+    connect_url = request_connect_url(request)
+    payload, warnings = build_qr_payload(connect_url)
+    return api_ok(payload, warnings=warnings)
+
+
+@app.get("/connect", response_class=HTMLResponse, summary="Mobile pairing page with QR")
+async def connect_page(request: Request):
+    connect_url = request_connect_url(request)
+    qr_block = ""
+    try:
+        import base64
+        import io
+
+        import qrcode
+
+        img = qrcode.make(connect_url)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        qr_block = f'<img alt="Connect QR" src="data:image/png;base64,{b64}" style="width:280px;height:280px;border-radius:12px;border:1px solid #1e3328;" />'
+    except Exception:
+        qr_block = "<p>Install qrcode package for image QR: python3 -m pip install qrcode</p>"
+
+    html = f"""
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Disk Intelligence Connect</title>
+        <style>
+          body {{ font-family: Arial, sans-serif; background:#0b1410; color:#f0f5f1; margin:0; padding:24px; }}
+          .card {{ max-width:560px; margin:0 auto; background:#12201a; border:1px solid #1e3328; border-radius:18px; padding:20px; }}
+          .url {{ background:#182a21; padding:10px 12px; border-radius:10px; word-break:break-all; }}
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>Connect Mobile App</h2>
+          <p>Scan this QR in the app's Connected Devices screen.</p>
+          {qr_block}
+          <h3>URL</h3>
+          <div class="url">{connect_url}</div>
+        </div>
+      </body>
+    </html>
+    """
+    return HTMLResponse(html)
 
 
 @app.get("/", summary="Service index")
@@ -933,6 +1180,9 @@ async def root_index():
                 "cleanup": [
                     "/api/v1/cleanup/run",
                     "/api/v1/cleanup/undo",
+                    "/api/v1/actions/delete-duplicates",
+                    "/api/v1/actions/delete-large-old",
+                    "/api/v1/actions/clean-logs-temp",
                 ],
             },
             "note": "Default deployment should bind to 127.0.0.1 only for local safety.",
@@ -946,9 +1196,98 @@ async def root_index():
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Disk Intelligence FastAPI server")
     parser.add_argument("--host", default=os.getenv("DISK_INTEL_HOST", "127.0.0.1"))
-    parser.add_argument("--port", type=int, default=int(os.getenv("DISK_INTEL_PORT", "8765")))
+    parser.add_argument("--port", type=int, default=int(os.getenv("DISK_INTEL_PORT", "8001")))
     parser.add_argument("--reload", action="store_true")
     return parser.parse_args()
+
+
+def detect_lan_ip() -> str:
+    """Best-effort LAN IP detection for printing connect URL/QR."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
+
+def resolve_connect_host(bind_host: str) -> str:
+    if bind_host in {"0.0.0.0", "::"}:
+        return detect_lan_ip()
+    if bind_host in {"127.0.0.1", "localhost"}:
+        return "127.0.0.1"
+    return bind_host
+
+
+def print_connect_qr(connect_url: str) -> None:
+    """Print ASCII QR to terminal if qrcode package is available."""
+    LOGGER.info("Connect URL: %s", connect_url)
+    LOGGER.info("Health URL: %s/healthz", connect_url)
+    LOGGER.info("Docs URL: %s/docs", connect_url)
+    LOGGER.info("Pairing page: %s/connect", connect_url)
+    try:
+        import qrcode
+
+        qr = qrcode.QRCode(border=1)
+        qr.add_data(connect_url)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+        print("\nScan this QR from phone:\n")
+        for row in matrix:
+            line = "".join("██" if cell else "  " for cell in row)
+            print(line)
+        print()
+    except Exception:
+        LOGGER.info("Install optional 'qrcode' package for terminal QR: python3 -m pip install qrcode")
+
+
+def infer_runtime_connect_url() -> str:
+    """Infer connect URL when app is started via uvicorn (without main())."""
+    if CONNECT_URL:
+        return CONNECT_URL
+
+    env_url = os.getenv("DISK_INTEL_CONNECT_URL", "").strip()
+    if env_url:
+        return env_url.rstrip("/")
+
+    host = os.getenv("DISK_INTEL_HOST", "").strip()
+    port = os.getenv("DISK_INTEL_PORT", "8001").strip() or "8001"
+    if host:
+        connect_host = resolve_connect_host(host)
+    else:
+        # uvicorn CLI commonly doesn't set DISK_INTEL_HOST, prefer LAN for QR pairing
+        connect_host = detect_lan_ip()
+    return f"http://{connect_host}:{port}"
+
+
+def request_connect_url(request: Request) -> str:
+    """Build connect URL from request host, with safe LAN fallback."""
+    if CONNECT_URL:
+        return CONNECT_URL
+
+    host_header = (request.headers.get("host") or "").strip()
+    if host_header:
+        host_part, _, port_part = host_header.partition(":")
+        host = host_part.strip()
+        port = port_part.strip() or os.getenv("DISK_INTEL_PORT", "8001")
+        if host in {"127.0.0.1", "localhost", "0.0.0.0", "::"}:
+            host = detect_lan_ip()
+        if host:
+            return f"http://{host}:{port}"
+
+    return infer_runtime_connect_url()
+
+
+def ensure_startup_connect_banner() -> None:
+    """Print connect URL/QR exactly once per process startup."""
+    global STARTUP_BANNER_PRINTED, CONNECT_URL
+    if STARTUP_BANNER_PRINTED:
+        return
+    connect_url = infer_runtime_connect_url()
+    CONNECT_URL = connect_url
+    os.environ["DISK_INTEL_CONNECT_URL"] = connect_url
+    print_connect_qr(connect_url)
+    STARTUP_BANNER_PRINTED = True
 
 
 def main() -> None:
@@ -956,8 +1295,14 @@ def main() -> None:
 
     args = parse_args()
     LOGGER.info("Starting Disk Intelligence Server host=%s port=%s", args.host, args.port)
+    connect_host = resolve_connect_host(args.host)
+    connect_url = f"http://{connect_host}:{args.port}"
+    global CONNECT_URL
+    CONNECT_URL = connect_url
+    os.environ["DISK_INTEL_CONNECT_URL"] = connect_url
+    ensure_startup_connect_banner()
     uvicorn.run(
-        "disk_intelligence_server:app",
+        "python_scripts.disk_intelligence_server:app",
         host=args.host,
         port=args.port,
         reload=args.reload,

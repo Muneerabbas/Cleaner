@@ -20,6 +20,8 @@ export type AppStorage = {
   appBytes: number;
   dataBytes: number;
   cacheBytes: number;
+  lastTimeUsed?: number;
+  isSystem?: boolean;
   iconBase64?: string;
 };
 

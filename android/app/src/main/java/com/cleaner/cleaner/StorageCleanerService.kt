@@ -11,7 +11,15 @@ import com.cleaner.cleaner.core.PathValidator
 import com.cleaner.cleaner.core.TrashHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.BufferedInputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Single entry point for all storage cleaning. No UI, no React references.
@@ -19,6 +27,13 @@ import java.io.File
  * All heavy work on Dispatchers.IO.
  */
 class StorageCleanerService(private val context: Context) {
+    data class CompressionResult(
+        val archivePath: String,
+        val sourceFileCount: Int,
+        val sourceBytes: Long,
+        val archiveBytes: Long,
+        val skippedPaths: List<String>
+    )
 
     private val fileScanner = FileScanner()
     private val duplicateDetector = DuplicateDetector()
@@ -60,6 +75,29 @@ class StorageCleanerService(private val context: Context) {
         withContext(Dispatchers.IO) {
             val all = scanAllFiles()
             val filtered = all.filter { it.size >= minSizeBytes }
+                .sortedByDescending { it.size }
+            if (limit != null) filtered.take(limit) else filtered
+        }
+
+    /**
+     * Scan for files that are good candidates for compression.
+     * Skips already compressed/archive formats.
+     */
+    suspend fun scanCompressibleFiles(minSizeBytes: Long = 10L * 1024 * 1024, limit: Int? = 500): List<FileEntry> =
+        withContext(Dispatchers.IO) {
+            val nonCompressible = setOf(
+                "zip", "rar", "7z", "gz", "bz2", "xz", "zst",
+                "jpg", "jpeg", "png", "webp", "heic", "gif",
+                "mp4", "mkv", "avi", "mov", "mp3", "aac", "flac",
+                "apk", "aab", "iso", "pdf"
+            )
+            val all = scanAllFiles()
+            val filtered = all
+                .filter { it.size >= minSizeBytes }
+                .filter { entry ->
+                    val ext = File(entry.path).extension.lowercase(Locale.US)
+                    ext !in nonCompressible
+                }
                 .sortedByDescending { it.size }
             if (limit != null) filtered.take(limit) else filtered
         }
@@ -156,6 +194,84 @@ class StorageCleanerService(private val context: Context) {
             }
             restored
         }
+
+    /**
+     * Compress selected files into a single zip archive under Downloads/CleanerCompressed.
+     */
+    suspend fun compressFiles(paths: List<String>, archiveName: String? = null): CompressionResult =
+        withContext(Dispatchers.IO) {
+            val allowed = PathValidator.filterAllowedPaths(paths, allowedRoots)
+                .map { File(it) }
+                .filter { it.exists() && it.isFile }
+
+            if (allowed.isEmpty()) {
+                throw IllegalArgumentException("No valid files selected for compression.")
+            }
+
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val safeName = (archiveName?.trim()?.ifEmpty { null } ?: "cleaner_archive_$timestamp")
+                .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            val finalName = if (safeName.endsWith(".zip", ignoreCase = true)) safeName else "$safeName.zip"
+
+            @Suppress("DEPRECATION")
+            val downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val outDir = File(downloads, "CleanerCompressed").apply { mkdirs() }
+            val outFile = File(outDir, finalName)
+
+            val usedEntryNames = mutableSetOf<String>()
+            var sourceBytes = 0L
+            val skipped = mutableListOf<String>()
+
+            ZipOutputStream(FileOutputStream(outFile)).use { zos ->
+                allowed.forEachIndexed { idx, file ->
+                    val entryName = uniqueZipEntryName(file.name, idx, usedEntryNames)
+                    val zipEntry = ZipEntry(entryName).apply { time = file.lastModified() }
+                    try {
+                        zos.putNextEntry(zipEntry)
+                        BufferedInputStream(FileInputStream(file)).use { input ->
+                            val buf = ByteArray(DEFAULT_BUFFER_SIZE)
+                            while (true) {
+                                val read = input.read(buf)
+                                if (read <= 0) break
+                                zos.write(buf, 0, read)
+                            }
+                        }
+                        zos.closeEntry()
+                        sourceBytes += file.length()
+                    } catch (_: Exception) {
+                        skipped.add(file.absolutePath)
+                        runCatching { zos.closeEntry() }
+                    }
+                }
+            }
+
+            CompressionResult(
+                archivePath = outFile.absolutePath,
+                sourceFileCount = allowed.size - skipped.size,
+                sourceBytes = sourceBytes,
+                archiveBytes = outFile.length(),
+                skippedPaths = skipped
+            )
+        }
 }
 
 private fun File.isProtectedAndroidDir(): Boolean = PathValidator.isProtectedAndroidPath(absolutePath)
+
+private fun uniqueZipEntryName(baseName: String, index: Int, used: MutableSet<String>): String {
+    if (baseName !in used) {
+        used.add(baseName)
+        return baseName
+    }
+    val dot = baseName.lastIndexOf('.')
+    val name = if (dot > 0) baseName.substring(0, dot) else baseName
+    val ext = if (dot > 0) baseName.substring(dot) else ""
+    var n = index + 1
+    while (true) {
+        val candidate = "${name}_$n$ext"
+        if (candidate !in used) {
+            used.add(candidate)
+            return candidate
+        }
+        n += 1
+    }
+}

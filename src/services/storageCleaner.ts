@@ -19,6 +19,14 @@ export type CleanupResult =
   | { status: 'rejected'; reason: string; rejectedPaths: string[] }
   | { status: 'error'; message: string };
 
+export type CompressionResult = {
+  archivePath: string;
+  sourceFileCount: number;
+  sourceBytes: number;
+  archiveBytes: number;
+  skippedPaths: string[];
+};
+
 function toFileEntry(raw: {
   path: string;
   size: number;
@@ -120,6 +128,19 @@ export const storageCleaner = {
     });
   },
 
+  async scanCompressibleFiles(
+    minSizeBytes: number = 10 * 1024 * 1024,
+    limit: number | null = 500
+  ): Promise<FileEntry[]> {
+    return invoke(async () => {
+      const raw = await CleanerModule.scanCompressibleFiles(
+        minSizeBytes,
+        limit ?? 0
+      );
+      return toFileEntryList(raw ?? []);
+    });
+  },
+
   async getTrashFiles(): Promise<FileEntry[]> {
     return invoke(async () => {
       const raw = await CleanerModule.getTrashFiles();
@@ -176,6 +197,19 @@ export const storageCleaner = {
     return invoke(async () => {
       const raw = await CleanerModule.restoreFromTrash(paths);
       return Array.isArray(raw) ? raw.map(String) : [];
+    });
+  },
+
+  async compressFiles(paths: string[], archiveName?: string): Promise<CompressionResult> {
+    return invoke(async () => {
+      const raw = await CleanerModule.compressFiles(paths, archiveName ?? null);
+      return {
+        archivePath: String(raw?.archivePath ?? ''),
+        sourceFileCount: Number(raw?.sourceFileCount) || 0,
+        sourceBytes: Number(raw?.sourceBytes) || 0,
+        archiveBytes: Number(raw?.archiveBytes) || 0,
+        skippedPaths: Array.isArray(raw?.skippedPaths) ? raw.skippedPaths.map(String) : [],
+      };
     });
   },
 };
