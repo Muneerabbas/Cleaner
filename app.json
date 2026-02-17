@@ -2,6 +2,8 @@
   "expo": {
     "name": "Cleaner",
     "slug": "cleaner",
+    "scheme": "cleaner",
+
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -16,7 +18,13 @@
       "package": "com.cleaner"
     },
     "plugins": [
-      "expo-dev-client"
-    ]
+      "expo-dev-client",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "769af8e5-3454-4752-90cf-c707965b33d3"
+      }
+    }
   }
 }

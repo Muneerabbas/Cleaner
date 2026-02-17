@@ -13,6 +13,7 @@ import StatsScreen from './src/screens/StatsScreen';
 import CleanerHomeScreen from './src/screens/CleanerHomeScreen';
 import CleanerListScreen from './src/screens/CleanerListScreen';
 import DiskIntelScreen from './src/screens/DiskIntelScreen';
+import DriveScreen from './src/screens/DriveScreen';
 import { DashboardProvider } from './src/screens/DashboardContext';
 import { colors, fonts } from './src/screens/styles';
 
@@ -49,6 +50,7 @@ const TAB_ICONS: Record<string, { focused: string; unfocused: string }> = {
   Home: { focused: 'home', unfocused: 'home-outline' },
   Clean: { focused: 'broom', unfocused: 'broom' },
   Apps: { focused: 'apps', unfocused: 'apps' },
+  Drive: { focused: 'google-drive', unfocused: 'google-drive' },
   Stats: { focused: 'chart-arc', unfocused: 'chart-arc' },
 };
 
@@ -89,6 +91,7 @@ function Tabs() {
       <Tab.Screen name="Home" component={HomeNavigator} />
       <Tab.Screen name="Clean" component={CleanerNavigator} options={{ tabBarLabel: 'Clean' }} />
       <Tab.Screen name="Apps" component={AppsScreen} />
+      <Tab.Screen name="Drive" component={DriveScreen} options={{ tabBarLabel: 'Drive' }} />
       <Tab.Screen name="Stats" component={StatsScreen} />
     </Tab.Navigator>
   );
