@@ -80,6 +80,18 @@ export default function DiskIntelScreen() {
       setStatus('Healthy');
     });
 
+  const openActionScreen = (action: 'scan' | 'analysis' | 'cleanup', title: string) => {
+    navigation.navigate(
+      'DeviceAction' as never,
+      {
+        action,
+        title,
+        baseUrl: diskIntelApi.getBaseUrl(),
+        rootPath,
+      } as never,
+    );
+  };
+
   const onStartScan = () =>
     withAction('Starting scan', async () => {
       const scan = await diskIntelApi.startScan({
@@ -331,52 +343,52 @@ export default function DiskIntelScreen() {
               <Text style={styles.tileSub}>Check API status</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.tile} onPress={onStartScan} disabled={busy}>
+            <TouchableOpacity style={styles.tile} onPress={() => openActionScreen('scan', 'Start Scan')} disabled={busy}>
               <View style={[styles.tileIconWrap, { backgroundColor: colors.accentBg }]}>
                 <MaterialCommunityIcons name="magnify-scan" size={22} color={colors.accent} />
               </View>
               <Text style={styles.tileTitle}>Start Scan</Text>
-              <Text style={styles.tileSub}>Create new snapshot</Text>
+              <Text style={styles.tileSub}>Open analysis screen</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.tile} onPress={onLatestSnapshot} disabled={busy}>
+            <TouchableOpacity style={styles.tile} onPress={() => openActionScreen('analysis', 'Latest Snapshot')} disabled={busy}>
               <View style={[styles.tileIconWrap, { backgroundColor: 'rgba(130,177,255,0.12)' }]}>
                 <MaterialCommunityIcons name="clock-time-four-outline" size={22} color="#82b1ff" />
               </View>
               <Text style={styles.tileTitle}>Latest Snapshot</Text>
-              <Text style={styles.tileSub}>Load recent snapshot</Text>
+              <Text style={styles.tileSub}>Open analysis screen</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.tile} onPress={onRunAnalysis} disabled={busy}>
+            <TouchableOpacity style={styles.tile} onPress={() => openActionScreen('analysis', 'Run Analysis')} disabled={busy}>
               <View style={[styles.tileIconWrap, { backgroundColor: 'rgba(255,201,92,0.12)' }]}>
                 <MaterialCommunityIcons name="chart-box-outline" size={22} color={colors.warn} />
               </View>
               <Text style={styles.tileTitle}>Run Analysis</Text>
-              <Text style={styles.tileSub}>Background job</Text>
+              <Text style={styles.tileSub}>Open analysis screen</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.tile} onPress={onSnapshotStats} disabled={busy}>
+            <TouchableOpacity style={styles.tile} onPress={() => openActionScreen('analysis', 'Snapshot Stats')} disabled={busy}>
               <View style={[styles.tileIconWrap, { backgroundColor: 'rgba(178,160,255,0.12)' }]}>
                 <MaterialCommunityIcons name="chart-pie" size={22} color="#b2a0ff" />
               </View>
               <Text style={styles.tileTitle}>Snapshot Stats</Text>
-              <Text style={styles.tileSub}>Largest, folders, Pareto</Text>
+              <Text style={styles.tileSub}>Open analysis screen</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.tile} onPress={onDuplicates} disabled={busy}>
+            <TouchableOpacity style={styles.tile} onPress={() => openActionScreen('analysis', 'Duplicates')} disabled={busy}>
               <View style={[styles.tileIconWrap, { backgroundColor: 'rgba(130,177,255,0.12)' }]}>
                 <MaterialCommunityIcons name="content-copy" size={22} color="#82b1ff" />
               </View>
               <Text style={styles.tileTitle}>Duplicates</Text>
-              <Text style={styles.tileSub}>Duplicate clusters</Text>
+              <Text style={styles.tileSub}>Open analysis screen</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.tile} onPress={onLargeOld} disabled={busy}>
+            <TouchableOpacity style={styles.tile} onPress={() => openActionScreen('analysis', 'Large + Old')} disabled={busy}>
               <View style={[styles.tileIconWrap, { backgroundColor: 'rgba(255,171,64,0.12)' }]}>
                 <MaterialCommunityIcons name="file-alert-outline" size={22} color="#ffab40" />
               </View>
               <Text style={styles.tileTitle}>Large + Old</Text>
-              <Text style={styles.tileSub}>Filter candidate files</Text>
+              <Text style={styles.tileSub}>Open analysis screen</Text>
             </TouchableOpacity>
           </View>
 

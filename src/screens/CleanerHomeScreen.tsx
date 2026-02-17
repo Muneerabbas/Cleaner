@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { styles, colors } from './styles';
 
-export type CleanerMode = 'junk' | 'large' | 'duplicates' | 'trash' | 'empty';
+export type CleanerMode = 'junk' | 'large' | 'duplicates' | 'trash' | 'empty' | 'compress';
 
 type TileConfig = {
   key: CleanerMode;
@@ -56,6 +56,14 @@ const TILES: TileConfig[] = [
     icon: 'folder-off-outline',
     iconBg: 'rgba(178, 160, 255, 0.12)',
     iconColor: '#b2a0ff',
+  },
+  {
+    key: 'compress',
+    title: 'Compressor',
+    subtitle: 'Zip large files',
+    icon: 'folder-zip-outline',
+    iconBg: 'rgba(124, 179, 66, 0.12)',
+    iconColor: '#7cb342',
   },
 ];
 

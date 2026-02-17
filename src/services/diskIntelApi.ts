@@ -180,4 +180,64 @@ export const diskIntelApi = {
     });
   },
 
+  deleteDuplicates(payload: {
+    snapshot_id?: number;
+    roots: string[];
+    limit?: number;
+    force_high_risk?: boolean;
+    quarantine_mode?: boolean;
+    confirm: boolean;
+  }): Promise<{ job_id: string }> {
+    return request('/api/v1/actions/delete-duplicates', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteLargeOld(payload: {
+    snapshot_id?: number;
+    roots: string[];
+    min_size?: string;
+    older_than_days?: number;
+    limit?: number;
+    force_high_risk?: boolean;
+    quarantine_mode?: boolean;
+    confirm: boolean;
+  }): Promise<{ job_id: string }> {
+    return request('/api/v1/actions/delete-large-old', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  cleanLogsTemp(payload: {
+    snapshot_id?: number;
+    roots: string[];
+    limit?: number;
+    force_high_risk?: boolean;
+    quarantine_mode?: boolean;
+    confirm: boolean;
+  }): Promise<{ job_id: string }> {
+    return request('/api/v1/actions/clean-logs-temp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  listActions(): Promise<{ actions: Array<Record<string, unknown>> }> {
+    return request('/api/v1/actions').catch(() => ({
+      actions: [
+        { id: 'health', label: 'Health Check', kind: 'analysis', destructive: false },
+        { id: 'scan', label: 'Start Scan', kind: 'analysis', destructive: false },
+        { id: 'analysis', label: 'Run Analysis', kind: 'analysis', destructive: false },
+        { id: 'duplicates', label: 'Find Duplicates', kind: 'analysis', destructive: false },
+        { id: 'cleanup_dry', label: 'Cleanup Dry-Run', kind: 'cleanup', destructive: false },
+        { id: 'delete_duplicates', label: 'Delete Duplicates', kind: 'cleanup', destructive: true },
+        { id: 'delete_large_old', label: 'Delete Large + Old', kind: 'cleanup', destructive: true },
+        { id: 'clean_logs_temp', label: 'Clean Logs/Temp', kind: 'cleanup', destructive: true },
+        { id: 'undo_cleanup', label: 'Undo Cleanup', kind: 'cleanup', destructive: false },
+      ],
+    }));
+  },
+
 };

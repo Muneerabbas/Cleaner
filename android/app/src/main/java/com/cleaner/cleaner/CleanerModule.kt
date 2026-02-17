@@ -168,6 +168,24 @@ class CleanerModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
     }
 
     @ReactMethod
+    fun scanCompressibleFiles(minSizeBytes: Double, limit: Double, promise: Promise) {
+        scope.launch {
+            if (!ensurePermission(promise)) return@launch
+            try {
+                val limitInt = if (limit > 0) limit.toInt() else null
+                val list = withContext(Dispatchers.IO) {
+                    service.scanCompressibleFiles(minSizeBytes.toLong(), limitInt)
+                }
+                Log.d(TAG, "scanCompressibleFiles: found ${list.size}")
+                promise.resolve(toWritableArray(list))
+            } catch (e: Exception) {
+                Log.e(TAG, "scanCompressibleFiles error", e)
+                promise.reject("COMPRESS_SCAN_ERROR", e.message, e)
+            }
+        }
+    }
+
+    @ReactMethod
     fun getTrashFiles(promise: Promise) {
         scope.launch {
             if (!ensurePermission(promise)) return@launch
@@ -233,6 +251,32 @@ class CleanerModule(reactContext: ReactApplicationContext) : ReactContextBaseJav
             } catch (e: Exception) {
                 Log.e(TAG, "restoreFromTrash error", e)
                 promise.reject("RESTORE_ERROR", e.message, e)
+            }
+        }
+    }
+
+    @ReactMethod
+    fun compressFiles(paths: ReadableArray, archiveName: String?, promise: Promise) {
+        scope.launch {
+            if (!ensurePermission(promise)) return@launch
+            try {
+                val pathList = (0 until paths.size()).map { paths.getString(it) ?: "" }.filter { it.isNotEmpty() }
+                val out = withContext(Dispatchers.IO) {
+                    service.compressFiles(pathList, archiveName)
+                }
+                val map = Arguments.createMap().apply {
+                    putString("archivePath", out.archivePath)
+                    putInt("sourceFileCount", out.sourceFileCount)
+                    putDouble("sourceBytes", out.sourceBytes.toDouble())
+                    putDouble("archiveBytes", out.archiveBytes.toDouble())
+                    val skipped = Arguments.createArray()
+                    out.skippedPaths.forEach { skipped.pushString(it) }
+                    putArray("skippedPaths", skipped)
+                }
+                promise.resolve(map)
+            } catch (e: Exception) {
+                Log.e(TAG, "compressFiles error", e)
+                promise.reject("COMPRESS_ERROR", e.message, e)
             }
         }
     }
