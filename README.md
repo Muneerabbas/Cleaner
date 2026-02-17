@@ -235,7 +235,7 @@ The app can connect to a Python server running on another machine (laptop/deskto
 
 ## Team
 
-Built for hackathon by the Cleaner team.
+Built for hackathon by the CodeCraft.
 
 ---
 
