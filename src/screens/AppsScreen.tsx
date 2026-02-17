@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useDashboard } from './DashboardContext';
-import { styles } from './styles';
+import { styles, colors } from './styles';
 
 export default function AppsScreen() {
   const {
@@ -35,45 +36,35 @@ export default function AppsScreen() {
   );
 
   useEffect(() => {
-    if (usageAccess) {
-      refreshAppsStorage().catch(() => {});
-    }
+    if (usageAccess) refreshAppsStorage().catch(() => {});
   }, [usageAccess, refreshAppsStorage]);
 
-  // Re-check when returning from settings
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        recheckUsageAccess().then(() => {
-          refreshAppsStorage().catch(() => {});
-        }).catch(() => {});
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') {
+        recheckUsageAccess().then(() => refreshAppsStorage().catch(() => {})).catch(() => {});
       }
     });
     return () => sub.remove();
   }, [recheckUsageAccess, refreshAppsStorage]);
 
   const formatBytes = (bytes: number) => {
-    if (bytes >= 1024 * 1024 * 1024) {
-      return `${(bytes / 1024 / 1024 / 1024).toFixed(1)}GB`;
-    }
-    return `${Math.max(0, Math.round(bytes / 1024 / 1024))}MB`;
-  };
-
-  const sizeToCo2Kg = (bytes: number) => {
-    const GB = bytes / 1024 / 1024 / 1024;
-    const CO2_PER_GB = 0.02;
-    return GB * CO2_PER_GB;
+    if (bytes >= 1024 * 1024 * 1024)
+      return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+    return `${Math.max(0, Math.round(bytes / 1024 / 1024))} MB`;
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.root}>
         <View style={styles.header}>
-          <View style={styles.avatar} />
-          <Text style={styles.brand}>App Manager</Text>
-          <View style={styles.headerIcons}>
-            <Text style={styles.icon}>🔔</Text>
+          <View style={[styles.avatar, { backgroundColor: colors.accentDim }]}>
+            <MaterialCommunityIcons name="apps" size={18} color={colors.accent} />
           </View>
+          <Text style={styles.brand}>App Manager</Text>
+          <TouchableOpacity style={styles.headerIcons}>
+            <MaterialCommunityIcons name="refresh" size={18} color={colors.textSec} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView
@@ -82,85 +73,77 @@ export default function AppsScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={async () => {
-                await refreshAll();
-                await refreshAppsStorage();
-              }}
-              tintColor="#9fe6a6"
+              onRefresh={async () => { await refreshAll(); await refreshAppsStorage(); }}
+              tintColor={colors.accent}
             />
           }
         >
-          {!usageAccess ? (
+          {!usageAccess && (
             <View style={styles.accessCard}>
-              <Text style={styles.accessTitle}>Enable Usage Access</Text>
+              <MaterialCommunityIcons name="shield-lock-outline" size={40} color={colors.accent} />
+              <Text style={[styles.accessTitle, { marginTop: 12 }]}>Enable Usage Access</Text>
               <Text style={styles.accessSub}>
-                Required to show app storage and usage.
+                Required to show which apps are using storage and which are unused.
               </Text>
-              <TouchableOpacity
-                style={styles.accessButton}
-                onPress={openUsageAccessSettings}
-              >
+              <TouchableOpacity style={styles.accessButton} onPress={openUsageAccessSettings}>
                 <Text style={styles.accessButtonText}>Open Settings</Text>
               </TouchableOpacity>
             </View>
-          ) : null}
+          )}
 
-          <View style={styles.appsCard}>
-            <View style={styles.appsHeader}>
-              <Text style={styles.sectionTitle}>Installed Apps</Text>
-            </View>
-            {appsLoading ? (
-              <View>
-                <ActivityIndicator color="#9fe6a6" />
-                <Text style={styles.listSubtitle}>Loading apps...</Text>
+          {usageAccess && (
+            <View style={styles.appsCard}>
+              <View style={[styles.appsHeader, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                <MaterialCommunityIcons name="apps" size={18} color={colors.accent} />
+                <Text style={[styles.sectionTitle, { marginTop: 0 }]}>
+                  Installed Apps ({appsStorage.length})
+                </Text>
               </View>
-            ) : appsStorage.length === 0 ? (
-              <Text style={styles.listSubtitle}>
-                No apps found. Pull to refresh.
-              </Text>
-            ) : (
-              appsStorage.map(app => (
-                <View key={app.packageName} style={styles.appRow}>
-                  <View style={styles.appIconWrap}>
-                    {app.iconBase64 ? (
-                      <Image
-                        source={{
-                          uri: `data:image/png;base64,${app.iconBase64}`,
-                        }}
-                        style={styles.appIcon}
-                      />
-                    ) : (
-                      <View style={styles.appIconFallback} />
-                    )}
-                  </View>
-                  <View style={styles.appText}>
-                    <Text style={styles.appName}>{app.appName}</Text>
-                    <Text style={styles.appPkg} numberOfLines={1}>
-                      {app.packageName}
-                    </Text>
-                  </View>
-                  <View style={styles.appRight}>
-                    <Text style={styles.appSize}>
-                      {formatBytes(
-                        app.appBytes + app.dataBytes + app.cacheBytes,
-                      )}{' '}
-                      •{' '}
-                      {sizeToCo2Kg(
-                        app.appBytes + app.dataBytes + app.cacheBytes,
-                      ).toFixed(3)}
-                      kg CO2
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.appUninstallButton}
-                      onPress={() => openAppUninstall(app.packageName)}
-                    >
-                      <Text style={styles.appUninstallText}>Uninstall</Text>
-                    </TouchableOpacity>
-                  </View>
+
+              {appsLoading ? (
+                <View style={styles.emptyState}>
+                  <ActivityIndicator color={colors.accent} size="large" />
+                  <Text style={[styles.emptyText, { marginTop: 12 }]}>Loading apps...</Text>
                 </View>
-              ))
-            )}
-          </View>
+              ) : appsStorage.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <MaterialCommunityIcons name="package-variant" size={40} color={colors.textDim} />
+                  <Text style={styles.emptyText}>No apps found. Pull to refresh.</Text>
+                </View>
+              ) : (
+                appsStorage.map(app => {
+                  const totalBytes = app.appBytes + app.dataBytes + app.cacheBytes;
+                  return (
+                    <View key={app.packageName} style={styles.appRow}>
+                      <View style={styles.appIconWrap}>
+                        {app.iconBase64 ? (
+                          <Image
+                            source={{ uri: `data:image/png;base64,${app.iconBase64}` }}
+                            style={styles.appIcon}
+                          />
+                        ) : (
+                          <MaterialCommunityIcons name="package-variant" size={20} color={colors.textDim} />
+                        )}
+                      </View>
+                      <View style={styles.appText}>
+                        <Text style={styles.appName}>{app.appName}</Text>
+                        <Text style={styles.appPkg} numberOfLines={1}>{app.packageName}</Text>
+                      </View>
+                      <View style={styles.appRight}>
+                        <Text style={styles.appSize}>{formatBytes(totalBytes)}</Text>
+                        <TouchableOpacity
+                          style={styles.appUninstallButton}
+                          onPress={() => openAppUninstall(app.packageName)}
+                        >
+                          <Text style={styles.appUninstallText}>Uninstall</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
