@@ -1,22 +1,18 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
 import 'react-native-gesture-handler';
-import { StatusBar, Text, useColorScheme } from 'react-native';
+import React from 'react';
+import { StatusBar, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import HomeScreen from './src/screens/HomeScreen';
 import AppsScreen from './src/screens/AppsScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import CleanerHomeScreen from './src/screens/CleanerHomeScreen';
 import CleanerListScreen from './src/screens/CleanerListScreen';
 import { DashboardProvider } from './src/screens/DashboardContext';
+import { colors, fonts } from './src/screens/styles';
 
 Text.defaultProps = Text.defaultProps || {};
 Text.defaultProps.style = [
@@ -36,23 +32,46 @@ function CleanerNavigator() {
   );
 }
 
+const TAB_ICONS: Record<string, { focused: string; unfocused: string }> = {
+  Home: { focused: 'home', unfocused: 'home-outline' },
+  Clean: { focused: 'broom', unfocused: 'broom' },
+  Apps: { focused: 'apps', unfocused: 'apps' },
+  Stats: { focused: 'chart-arc', unfocused: 'chart-arc' },
+};
+
 function Tabs() {
   const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#101a12',
-          borderTopColor: '#101a12',
-          height: 64 + insets.bottom,
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
+          borderTopWidth: 1,
+          height: 68 + insets.bottom,
           paddingBottom: Math.max(10, insets.bottom),
-          paddingTop: 8,
+          paddingTop: 10,
+          elevation: 0,
         },
-        tabBarActiveTintColor: '#7cff7c',
-        tabBarInactiveTintColor: '#9fb2a6',
-        tabBarLabelStyle: { fontFamily: 'Poppins-SemiBold', fontSize: 10 },
-      }}
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textDim,
+        tabBarLabelStyle: { fontFamily: fonts.semiBold, fontSize: 10, marginTop: 2 },
+        tabBarIcon: ({ focused, color }) => {
+          const icons = TAB_ICONS[route.name] || TAB_ICONS.Home;
+          const name = focused ? icons.focused : icons.unfocused;
+          return (
+            <View style={focused ? {
+              backgroundColor: 'rgba(92, 235, 107, 0.12)',
+              borderRadius: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+            } : undefined}>
+              <MaterialCommunityIcons name={name as any} size={22} color={color} />
+            </View>
+          );
+        },
+      })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Clean" component={CleanerNavigator} options={{ tabBarLabel: 'Clean' }} />
@@ -63,11 +82,9 @@ function Tabs() {
 }
 
 function App() {
-  const isDarkMode = useColorScheme() === 'dark';
-
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
       <DashboardProvider>
         <NavigationContainer>
           <Tabs />
