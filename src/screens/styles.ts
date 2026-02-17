@@ -35,7 +35,7 @@ export const styles = StyleSheet.create({
   // ─── Layout ───
   safeArea: { flex: 1, backgroundColor: colors.bg },
   root: { flex: 1, backgroundColor: colors.bg },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 120 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 100 },
 
   // ─── Header ───
   header: {

@@ -1,98 +1,244 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# EcoCleaner - Smart Storage & Carbon Footprint Analyzer
 
-# Getting Started
+A React Native mobile app that helps users free up storage space on their Android devices while tracking the environmental impact of digital hoarding. Built with a native Kotlin engine for safe, high-performance file operations.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## What It Does
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+EcoCleaner scans your phone storage, finds wasted space (junk files, duplicates, large unused files), and lets you clean them up safely. Every file you delete is converted into an estimated CO2 saving based on the energy cost of storing digital data — making cleanup feel meaningful.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+---
 
-```sh
-# Using npm
-npm start
+## App Workflow (Simple)
 
-# OR using Yarn
-yarn start
+```
+Open App
+   |
+   v
+Dashboard (Home Tab)
+   - See storage usage ring (used / total)
+   - See CO2 saved today
+   - Quick links to Cleaner, Apps, Connected Devices
+   |
+   v
+Clean Tab --> Pick a category:
+   - Junk Files (cache, temp, .log, .bak)
+   - Large Files (100 MB+)
+   - Duplicates (same content, different locations)
+   - Trash (restore or permanently delete)
+   - Empty Folders (remove clutter)
+   - Compressor (zip large files)
+   |
+   v
+Scan --> Select files --> Delete / Compress / Restore
+   |
+   v
+CO2 savings update on Dashboard & Stats
 ```
 
-## Step 2: Build and run your app
+---
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## Screens & Tabs
 
-### Android
+| Tab | Screen | What It Does |
+|-----|--------|-------------|
+| Home | Dashboard | Storage ring, CO2 card, quick actions, unused apps list |
+| Clean | Cleaner Home | 6 cleaning modes in a tile grid + Disk Intelligence API |
+| Clean > [mode] | Cleaner List | Scan, select, delete/restore/compress files |
+| Apps | App Manager | Lists all installed apps with size, cache, last used. Sort, uninstall, clean cache |
+| Drive | Drive Analyzer | Paste a public Google Drive folder link to find large/junk files in the cloud |
+| Stats | Statistics | Storage breakdown, CO2 from used storage, CO2 saved today, unused app count |
 
-```sh
-# Using npm
+### Additional Screens (via navigation)
+
+- **Connected Devices** — Connect to a Python-based Disk Intelligence server (local network) for cross-device scanning and cleanup
+- **Device Action** — Run scan, analysis, duplicates detection, and safe cleanup on a connected device
+- **QR Scanner** — Scan a QR code to quickly connect to a Disk Intelligence server
+
+---
+
+## How Carbon Tracking Works
+
+Every time you delete files, the app calculates:
+
+```
+CO2 saved (kg) = (freed bytes / 1 GB) x 0.02
+```
+
+- **0.02 kg CO2 per GB** is the estimated yearly carbon footprint of storing 1 GB of data (based on data center energy studies)
+- Deleting 1 GB saves roughly **20 grams of CO2**
+- The app auto-scales display: shows grams for small values, kilograms for larger
+
+The CO2 value is:
+- Persisted per day (resets at midnight)
+- Synced across Home and Stats screens via shared context
+- Updated immediately after every cleanup action
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| UI | React Native 0.81 + Expo modules |
+| Navigation | React Navigation (bottom tabs + stack) |
+| Icons | MaterialCommunityIcons (@expo/vector-icons) |
+| Fonts | Poppins (Light, Regular, Medium, SemiBold, Bold, Italic) |
+| Native Engine | Kotlin (Android) |
+| File Operations | Custom Kotlin modules (CleanerModule, DeviceStatsModule) |
+| Storage Compliance | Android Scoped Storage, MANAGE_EXTERNAL_STORAGE |
+| State Management | React Context (DashboardContext) |
+| Persistence | react-native-fs (JSON file for daily savings) |
+| Drive Analysis | Google Drive API v3 (API key, public folders only) |
+| Cross-device | Python Disk Intelligence server + REST API |
+
+---
+
+## Architecture
+
+```
+React Native UI (JS/TS)
+        |
+        v
+  DashboardContext (shared state)
+        |
+        v
+  JS Service Wrappers (storageCleaner.ts, deviceStats.ts)
+        |
+        v
+  Native Modules (Kotlin bridge)
+    - CleanerModule  --> StorageCleanerService --> FileScanner, DuplicateDetector, JunkAnalyzer, CleanupExecutor
+    - DeviceStatsModule --> Android StatFs, UsageStatsManager, PackageManager
+```
+
+**Key principle:** All file scanning, hashing, and deletion runs in native Kotlin on background threads (Dispatchers.IO). The React Native UI never touches the filesystem directly.
+
+---
+
+## How to Run
+
+### Prerequisites
+
+- Node.js 20+
+- Android SDK (API 24+)
+- A physical Android device or emulator
+- Java 17+
+
+### Steps
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Run on Android (builds native code + starts Metro)
 npm run android
 
-# OR using Yarn
-yarn android
+# 3. Or start Metro separately
+npm start
+# Then press 'a' to open on Android
 ```
 
-### iOS
+### Google Drive Analyzer Setup
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+To use the Drive tab, you need a Google Drive API key:
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Enable **Google Drive API**
+3. Create an **API Key** under Credentials
+4. Replace the key in `src/screens/DriveScreen.jsx` line 15
 
-```sh
-bundle install
+The folder you analyze must be **shared publicly** ("Anyone with the link") in Google Drive settings.
+
+---
+
+## Project Structure
+
+```
+Cleaner/
+├── App.tsx                          # Tab navigator + stack navigators
+├── src/
+│   ├── screens/
+│   │   ├── HomeScreen.tsx           # Dashboard with storage ring + CO2
+│   │   ├── CleanerHomeScreen.tsx    # 6 cleaning mode tiles
+│   │   ├── CleanerListScreen.tsx    # Scan + select + delete UI
+│   │   ├── AppsScreen.tsx           # App manager with sort/filter
+│   │   ├── DriveScreen.jsx          # Google Drive folder analyzer
+│   │   ├── StatsScreen.tsx          # Statistics and CO2 breakdown
+│   │   ├── ConnectedDevicesScreen   # Cross-device cleanup
+│   │   ├── DeviceActionScreen       # Remote device actions
+│   │   ├── ServerQrScannerScreen    # QR code server connect
+│   │   ├── DiskIntelScreen.tsx      # Disk Intelligence API screen
+│   │   ├── DashboardContext.tsx     # Shared state provider
+│   │   └── styles.ts               # Design system (colors, fonts, styles)
+│   ├── native/
+│   │   └── deviceStats.ts           # JS wrapper for DeviceStatsModule
+│   ├── services/
+│   │   ├── storageCleaner.ts        # JS wrapper for CleanerModule
+│   │   └── diskIntelApi.ts          # REST client for Disk Intelligence server
+│   └── utils/
+│       ├── savedToday.ts            # CO2 persistence (daily reset)
+│       └── cache.ts                 # Cache cleanup utility
+├── android/app/src/main/java/com/cleaner/
+│   ├── cleaner/
+│   │   ├── CleanerModule.kt         # Native module bridge
+│   │   ├── CleanerPackage.kt        # Package registration
+│   │   ├── StorageCleanerService.kt # Business logic
+│   │   └── core/
+│   │       ├── FileScanner.kt       # File system traversal
+│   │       ├── DuplicateDetector.kt # Hash-based duplicate detection
+│   │       ├── JunkAnalyzer.kt      # Junk file classification
+│   │       └── CleanupExecutor.kt   # Safe file deletion
+│   └── devicestats/
+│       ├── DeviceStatsModule.kt     # Storage stats, usage access, app info
+│       └── DeviceStatsPackage.kt    # Package registration
+├── assets/fonts/                    # Poppins font files (.ttf)
+└── python_scripts/
+    └── disk_intelligence_server.py  # Cross-device cleanup server
 ```
 
-Then, and every time you update your native dependencies, run:
+---
 
-```sh
-bundle exec pod install
-```
+## Safety Features
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+- **Dry-run mode** — Preview what would be deleted before committing
+- **Trash system** — Deleted files go to trash first (restorable)
+- **Path validation** — System directories are protected from deletion
+- **Permission gating** — Storage access is requested before any scan
+- **Background threading** — All heavy operations run on Kotlin coroutines (IO dispatcher)
+- **Scoped Storage compliance** — Works with Android 10+ restrictions
 
-```sh
-# Using npm
-npm run ios
+---
 
-# OR using Yarn
-yarn ios
-```
+## Cleaning Modes
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+| Mode | What It Finds | How |
+|------|--------------|-----|
+| Junk | .tmp, .log, .bak, cache, thumbnails | Pattern matching on filenames and directories |
+| Large Files | Files over 100 MB | Size-based scan with sorting |
+| Duplicates | Files with identical content | MD5 hash comparison across groups |
+| Trash | Previously deleted files | Reads from app's trash directory |
+| Empty Folders | Directories with no files inside | Recursive directory check |
+| Compressor | Large files suitable for compression | Creates ZIP archives |
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+---
 
-## Step 3: Modify your app
+## Cross-Device Cleanup
 
-Now that you have successfully run the app, let's make changes!
+The app can connect to a Python server running on another machine (laptop/desktop) to scan and clean storage remotely:
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+1. Start the Disk Intelligence server on your computer: `python python_scripts/disk_intelligence_server.py`
+2. Scan the QR code shown by the server, or enter the URL manually
+3. Run scans, view analysis, find duplicates, and clean up — all from your phone
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+---
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+## Team
 
-## Congratulations! :tada:
+Built for hackathon by the Cleaner team.
 
-You've successfully run and modified your React Native App. :partying_face:
+---
 
-### Now what?
+## License
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
-# Cleaner
+MIT
