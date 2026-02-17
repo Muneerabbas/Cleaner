@@ -36,6 +36,8 @@ type DashboardState = {
   refreshAll: () => Promise<void>;
   refreshAppsStorage: () => Promise<void>;
   clearJunk: () => Promise<void>;
+  addSavedBytes: (bytes: number) => Promise<void>;
+  recheckUsageAccess: () => Promise<void>;
   openUsageAccessSettings: () => void;
   openAppInfo: (pkg: string) => void;
   openAppUninstall: (pkg: string) => void;
@@ -125,6 +127,25 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const addSavedBytes = async (bytes: number) => {
+    const next = await addSavedTodayBytes(bytes);
+    setSavedTodayBytes(next);
+  };
+
+  const recheckUsageAccess = async () => {
+    try {
+      const hasAccess = await hasUsageAccess();
+      setUsageAccess(hasAccess);
+      if (hasAccess) {
+        const apps = await getUnusedApps(30);
+        setUnusedCount(apps.length);
+        setUnusedApps(apps.slice(0, 5));
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     refreshAll().catch(() => {});
   }, []);
@@ -143,6 +164,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     refreshAll,
     refreshAppsStorage,
     clearJunk,
+    addSavedBytes,
+    recheckUsageAccess,
     openUsageAccessSettings,
     openAppInfo,
     openAppUninstall,

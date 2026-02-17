@@ -7,6 +7,7 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -21,14 +22,16 @@ export default function AppsScreen() {
     refreshing,
     refreshAll,
     refreshAppsStorage,
+    recheckUsageAccess,
     openUsageAccessSettings,
     openAppUninstall,
   } = useDashboard();
 
   useFocusEffect(
     React.useCallback(() => {
+      recheckUsageAccess().catch(() => {});
       refreshAppsStorage().catch(() => {});
-    }, [refreshAppsStorage]),
+    }, [recheckUsageAccess, refreshAppsStorage]),
   );
 
   useEffect(() => {
@@ -36,6 +39,18 @@ export default function AppsScreen() {
       refreshAppsStorage().catch(() => {});
     }
   }, [usageAccess, refreshAppsStorage]);
+
+  // Re-check when returning from settings
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        recheckUsageAccess().then(() => {
+          refreshAppsStorage().catch(() => {});
+        }).catch(() => {});
+      }
+    });
+    return () => sub.remove();
+  }, [recheckUsageAccess, refreshAppsStorage]);
 
   const formatBytes = (bytes: number) => {
     if (bytes >= 1024 * 1024 * 1024) {

@@ -10,9 +10,12 @@ import { StatusBar, Text, useColorScheme } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from './src/screens/HomeScreen';
 import AppsScreen from './src/screens/AppsScreen';
 import StatsScreen from './src/screens/StatsScreen';
+import CleanerHomeScreen from './src/screens/CleanerHomeScreen';
+import CleanerListScreen from './src/screens/CleanerListScreen';
 import { DashboardProvider } from './src/screens/DashboardContext';
 
 Text.defaultProps = Text.defaultProps || {};
@@ -22,6 +25,16 @@ Text.defaultProps.style = [
 ];
 
 const Tab = createBottomTabNavigator();
+const CleanerStack = createNativeStackNavigator();
+
+function CleanerNavigator() {
+  return (
+    <CleanerStack.Navigator screenOptions={{ headerShown: false }}>
+      <CleanerStack.Screen name="CleanerHome" component={CleanerHomeScreen} />
+      <CleanerStack.Screen name="CleanerList" component={CleanerListScreen} />
+    </CleanerStack.Navigator>
+  );
+}
 
 function Tabs() {
   const insets = useSafeAreaInsets();
@@ -42,6 +55,7 @@ function Tabs() {
       }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Clean" component={CleanerNavigator} options={{ tabBarLabel: 'Clean' }} />
       <Tab.Screen name="Apps" component={AppsScreen} />
       <Tab.Screen name="Stats" component={StatsScreen} />
     </Tab.Navigator>

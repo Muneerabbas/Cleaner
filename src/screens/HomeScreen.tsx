@@ -74,10 +74,25 @@ export default function HomeScreen() {
   const formatGb = (bytes: number) =>
     `${Math.round(bytes / 1024 / 1024 / 1024)}GB`;
 
-  const savedTodayKg = () => {
+  const formatCO2 = () => {
     const GB = savedTodayBytes / 1024 / 1024 / 1024;
     const CO2_PER_GB = 0.02;
-    return GB * CO2_PER_GB;
+    const kg = GB * CO2_PER_GB;
+    if (kg >= 0.01) return `${kg.toFixed(2)}kg`;
+    const g = kg * 1000;
+    if (g >= 0.01) return `${g.toFixed(2)}g`;
+    return '0g';
+  };
+
+  const formatFreed = () => {
+    if (savedTodayBytes <= 0) return '';
+    if (savedTodayBytes >= 1024 * 1024 * 1024)
+      return `${(savedTodayBytes / 1024 / 1024 / 1024).toFixed(1)} GB freed`;
+    if (savedTodayBytes >= 1024 * 1024)
+      return `${Math.round(savedTodayBytes / 1024 / 1024)} MB freed`;
+    if (savedTodayBytes >= 1024)
+      return `${Math.round(savedTodayBytes / 1024)} KB freed`;
+    return `${savedTodayBytes} B freed`;
   };
 
   return (
@@ -132,10 +147,10 @@ export default function HomeScreen() {
             <View style={styles.featureContent}>
               <Text style={styles.featureLabel}>DIGITAL FOOTPRINT</Text>
               <Text style={styles.featureValue}>
-                {savedTodayKg().toFixed(2)}kg CO2 Saved Today
+                {formatCO2()} CO2 Saved Today
               </Text>
               <Text style={styles.featureSub}>
-                Based on storage freed today
+                {formatFreed() || 'Delete files to reduce your footprint'}
               </Text>
             </View>
             <TouchableOpacity style={styles.featureAction} activeOpacity={0.8}>
@@ -144,6 +159,23 @@ export default function HomeScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Quick Optimization</Text>
+
+          <TouchableOpacity
+            style={styles.listItem}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('Clean' as never)}
+          >
+            <View style={styles.listIcon}>
+              <Text style={styles.listIconText}>🧹</Text>
+            </View>
+            <View style={styles.listText}>
+              <Text style={styles.listTitle}>Storage Cleaner</Text>
+              <Text style={styles.listSubtitle}>
+                Junk, large files, duplicates & trash
+              </Text>
+            </View>
+            <Text style={styles.listChevron}>›</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.listItem}
