@@ -1,70 +1,119 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { styles } from './styles';
+import { styles, colors } from './styles';
 
 export type CleanerMode = 'junk' | 'large' | 'duplicates' | 'trash' | 'empty';
 
-const TILES: { key: CleanerMode; title: string; subtitle: string; icon: string }[] = [
-  { key: 'junk', title: 'Junk Files', subtitle: 'Cache & temp files', icon: '🗑' },
-  { key: 'large', title: 'Large Files', subtitle: '100MB+ files', icon: '📦' },
-  { key: 'duplicates', title: 'Duplicates', subtitle: 'Same content, multiple copies', icon: '📋' },
-  { key: 'trash', title: 'Trash', subtitle: 'Restore or delete forever', icon: '♻' },
-  { key: 'empty', title: 'Empty Folders', subtitle: 'Remove empty directories', icon: '📁' },
+type TileConfig = {
+  key: CleanerMode;
+  title: string;
+  subtitle: string;
+  icon: string;
+  iconBg: string;
+  iconColor: string;
+};
+
+const TILES: TileConfig[] = [
+  {
+    key: 'junk',
+    title: 'Junk Files',
+    subtitle: 'Cache & temp files',
+    icon: 'delete-sweep',
+    iconBg: 'rgba(255, 171, 64, 0.12)',
+    iconColor: '#ffab40',
+  },
+  {
+    key: 'large',
+    title: 'Large Files',
+    subtitle: '100 MB+ files',
+    icon: 'file-alert',
+    iconBg: 'rgba(92, 235, 107, 0.12)',
+    iconColor: colors.accent,
+  },
+  {
+    key: 'duplicates',
+    title: 'Duplicates',
+    subtitle: 'Same content, copies',
+    icon: 'content-copy',
+    iconBg: 'rgba(130, 177, 255, 0.12)',
+    iconColor: '#82b1ff',
+  },
+  {
+    key: 'trash',
+    title: 'Trash',
+    subtitle: 'Restore or delete',
+    icon: 'delete-restore',
+    iconBg: 'rgba(255, 107, 107, 0.12)',
+    iconColor: colors.danger,
+  },
+  {
+    key: 'empty',
+    title: 'Empty Folders',
+    subtitle: 'Remove clutter',
+    icon: 'folder-off-outline',
+    iconBg: 'rgba(178, 160, 255, 0.12)',
+    iconColor: '#b2a0ff',
+  },
 ];
 
 export default function CleanerHomeScreen() {
   const navigation = useNavigation();
-
   const isAndroid = Platform.OS === 'android';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.root}>
         <View style={styles.header}>
-          <View style={styles.avatar} />
+          <View style={[styles.avatar, { backgroundColor: colors.accentDim }]}>
+            <MaterialCommunityIcons name="broom" size={18} color={colors.accent} />
+          </View>
           <Text style={styles.brand}>Storage Cleaner</Text>
-          <View style={styles.headerIcons} />
+          <View style={styles.headerIcons}>
+            <MaterialCommunityIcons name="cog-outline" size={18} color={colors.textSec} />
+          </View>
         </View>
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {!isAndroid ? (
+          {!isAndroid && (
             <View style={styles.accessCard}>
-              <Text style={styles.accessTitle}>Android only</Text>
+              <MaterialCommunityIcons name="android" size={32} color={colors.textSec} />
+              <Text style={[styles.accessTitle, { marginTop: 8 }]}>Android Only</Text>
               <Text style={styles.accessSub}>
-                Storage cleaning (scan, junk, large files, duplicates, trash) runs on the native Android module. Use an Android device or emulator.
+                Storage cleaning requires the native Android module.
               </Text>
             </View>
-          ) : null}
+          )}
 
           <Text style={styles.sectionTitle}>Quick Clean</Text>
-          {TILES.map((tile) => (
-            <TouchableOpacity
-              key={tile.key}
-              style={styles.listItem}
-              activeOpacity={0.8}
-              onPress={() =>
-                isAndroid &&
-                navigation.navigate('CleanerList' as never, { mode: tile.key } as never)
-              }
-              disabled={!isAndroid}
-            >
-              <View style={styles.listIcon}>
-                <Text style={styles.listIconText}>{tile.icon}</Text>
-              </View>
-              <View style={styles.listText}>
-                <Text style={styles.listTitle}>{tile.title}</Text>
-                <Text style={styles.listSubtitle}>{tile.subtitle}</Text>
-              </View>
-              {isAndroid ? (
-                <Text style={styles.listChevron}>›</Text>
-              ) : null}
-            </TouchableOpacity>
-          ))}
+
+          <View style={styles.tileContainer}>
+            {TILES.map((tile) => (
+              <TouchableOpacity
+                key={tile.key}
+                style={styles.tile}
+                activeOpacity={0.7}
+                onPress={() =>
+                  isAndroid &&
+                  navigation.navigate('CleanerList' as never, { mode: tile.key } as never)
+                }
+                disabled={!isAndroid}
+              >
+                <View style={[styles.tileIconWrap, { backgroundColor: tile.iconBg }]}>
+                  <MaterialCommunityIcons name={tile.icon as any} size={24} color={tile.iconColor} />
+                </View>
+                <View>
+                  <Text style={styles.tileTitle}>{tile.title}</Text>
+                  <Text style={styles.tileSub}>{tile.subtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
         </ScrollView>
       </View>
     </SafeAreaView>
