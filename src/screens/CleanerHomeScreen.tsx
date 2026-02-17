@@ -92,6 +92,21 @@ export default function CleanerHomeScreen() {
 
           <Text style={styles.sectionTitle}>Quick Clean</Text>
 
+          <TouchableOpacity
+            style={[styles.listItem, { marginTop: 8 }]}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate('DiskIntel' as never)}
+          >
+            <View style={styles.listIcon}>
+              <MaterialCommunityIcons name="api" size={22} color={colors.accent} />
+            </View>
+            <View style={styles.listText}>
+              <Text style={styles.listTitle}>Disk Intelligence API</Text>
+              <Text style={styles.listSubtitle}>Scan, analyze, duplicates, safe cleanup</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.accent} />
+          </TouchableOpacity>
+
           <View style={styles.tileContainer}>
             {TILES.map((tile) => (
               <TouchableOpacity

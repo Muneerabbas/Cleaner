@@ -202,6 +202,23 @@ export default function HomeScreen() {
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.accent} />
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={styles.listItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('ConnectedDevices' as never)}
+          >
+            <View style={styles.listIcon}>
+              <MaterialCommunityIcons name="devices" size={22} color={colors.accent} />
+            </View>
+            <View style={styles.listText}>
+              <Text style={styles.listTitle}>Connected Devices</Text>
+              <Text style={styles.listSubtitle}>
+                Choose device and run scan, analysis, cleanup actions
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.accent} />
+          </TouchableOpacity>
+
           {/* Unused Apps */}
           {usageAccess && unusedApps.length > 0 && (
             <View style={styles.miniList}>

@@ -7,10 +7,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import HomeScreen from './src/screens/HomeScreen';
+import ConnectedDevicesScreen from './src/screens/ConnectedDevicesScreen';
 import AppsScreen from './src/screens/AppsScreen';
 import StatsScreen from './src/screens/StatsScreen';
 import CleanerHomeScreen from './src/screens/CleanerHomeScreen';
 import CleanerListScreen from './src/screens/CleanerListScreen';
+import DiskIntelScreen from './src/screens/DiskIntelScreen';
 import { DashboardProvider } from './src/screens/DashboardContext';
 import { colors, fonts } from './src/screens/styles';
 
@@ -22,12 +24,23 @@ Text.defaultProps.style = [
 
 const Tab = createBottomTabNavigator();
 const CleanerStack = createNativeStackNavigator();
+const HomeStack = createNativeStackNavigator();
+
+function HomeNavigator() {
+  return (
+    <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+      <HomeStack.Screen name="HomeMain" component={HomeScreen} />
+      <HomeStack.Screen name="ConnectedDevices" component={ConnectedDevicesScreen} />
+    </HomeStack.Navigator>
+  );
+}
 
 function CleanerNavigator() {
   return (
     <CleanerStack.Navigator screenOptions={{ headerShown: false }}>
       <CleanerStack.Screen name="CleanerHome" component={CleanerHomeScreen} />
       <CleanerStack.Screen name="CleanerList" component={CleanerListScreen} />
+      <CleanerStack.Screen name="DiskIntel" component={DiskIntelScreen} />
     </CleanerStack.Navigator>
   );
 }
@@ -73,7 +86,7 @@ function Tabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home" component={HomeNavigator} />
       <Tab.Screen name="Clean" component={CleanerNavigator} options={{ tabBarLabel: 'Clean' }} />
       <Tab.Screen name="Apps" component={AppsScreen} />
       <Tab.Screen name="Stats" component={StatsScreen} />
