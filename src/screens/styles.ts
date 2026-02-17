@@ -23,9 +23,12 @@ export const colors = {
 };
 
 export const fonts = {
+  light: 'Poppins-Light',
   regular: 'Poppins-Regular',
+  medium: 'Poppins-Medium',
   semiBold: 'Poppins-SemiBold',
   bold: 'Poppins-Bold',
+  italic: 'Poppins-Italic',
 };
 
 export const styles = StyleSheet.create({
@@ -53,7 +56,6 @@ export const styles = StyleSheet.create({
   brand: {
     color: colors.text,
     fontSize: 18,
-    fontWeight: '700',
     fontFamily: fonts.semiBold,
     marginLeft: 12,
     flex: 1,
@@ -93,7 +95,6 @@ export const styles = StyleSheet.create({
   ringValue: {
     color: colors.text,
     fontSize: 38,
-    fontWeight: '700',
     fontFamily: fonts.bold,
     marginTop: 2,
   },
@@ -127,7 +128,6 @@ export const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 11,
     letterSpacing: 0.8,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
 
@@ -158,7 +158,6 @@ export const styles = StyleSheet.create({
   featureValue: {
     color: colors.text,
     fontSize: 20,
-    fontWeight: '700',
     fontFamily: fonts.semiBold,
     marginTop: 4,
   },
@@ -179,7 +178,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  featureActionText: { color: colors.bg, fontSize: 22, fontWeight: '700' },
+  featureActionText: { color: colors.bg, fontSize: 22, fontFamily: fonts.bold },
 
   // ─── Section ───
   sectionTitle: {
@@ -187,7 +186,6 @@ export const styles = StyleSheet.create({
     marginBottom: 4,
     color: colors.text,
     fontSize: 16,
-    fontWeight: '700',
     fontFamily: fonts.semiBold,
   },
 
@@ -217,7 +215,6 @@ export const styles = StyleSheet.create({
   listTitle: {
     color: colors.text,
     fontSize: 15,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
   listSubtitle: {
@@ -256,7 +253,6 @@ export const styles = StyleSheet.create({
   tileTitle: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
     marginTop: 4,
   },
@@ -293,7 +289,6 @@ export const styles = StyleSheet.create({
   miniName: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
   miniPkg: {
@@ -316,7 +311,6 @@ export const styles = StyleSheet.create({
   accessTitle: {
     color: colors.text,
     fontSize: 16,
-    fontWeight: '700',
     fontFamily: fonts.semiBold,
     textAlign: 'center',
   },
@@ -340,7 +334,6 @@ export const styles = StyleSheet.create({
   accessButtonText: {
     color: colors.bg,
     fontSize: 14,
-    fontWeight: '700',
     fontFamily: fonts.semiBold,
   },
 
@@ -370,13 +363,11 @@ export const styles = StyleSheet.create({
   statValue: {
     color: colors.text,
     fontSize: 15,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
   statBigValue: {
     color: colors.accent,
     fontSize: 28,
-    fontWeight: '700',
     fontFamily: fonts.bold,
   },
 
@@ -419,7 +410,6 @@ export const styles = StyleSheet.create({
   appName: {
     color: colors.text,
     fontSize: 14,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
   appPkg: {
@@ -431,7 +421,6 @@ export const styles = StyleSheet.create({
   appSize: {
     color: colors.accent,
     fontSize: 12,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
   appUninstallButton: {
@@ -446,7 +435,6 @@ export const styles = StyleSheet.create({
   appUninstallText: {
     color: colors.danger,
     fontSize: 11,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
 
@@ -464,7 +452,6 @@ export const styles = StyleSheet.create({
   scanButtonText: {
     color: colors.bg,
     fontSize: 15,
-    fontWeight: '700',
     fontFamily: fonts.semiBold,
   },
   summaryBar: {
@@ -523,7 +510,6 @@ export const styles = StyleSheet.create({
   groupTitle: {
     color: colors.text,
     fontSize: 13,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
   groupSub: {
@@ -542,7 +528,6 @@ export const styles = StyleSheet.create({
   keepBadgeText: {
     color: colors.accent,
     fontSize: 10,
-    fontWeight: '600',
     fontFamily: fonts.semiBold,
   },
   bottomBar: {
@@ -573,7 +558,6 @@ export const styles = StyleSheet.create({
   bottomBtnText: {
     color: colors.white,
     fontSize: 14,
-    fontWeight: '700',
     fontFamily: fonts.semiBold,
   },
 
