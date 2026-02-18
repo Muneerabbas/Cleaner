@@ -1,6 +1,14 @@
 import RNFS from 'react-native-fs';
 
 const FILE = `${RNFS.DocumentDirectoryPath}/saved_today.json`;
+const HISTORY_FILE = `${RNFS.DocumentDirectoryPath}/daily_history.json`;
+const HISTORY_DAYS = 7;
+
+export type DailyEntry = {
+  date: string;
+  freedBytes: number;
+  storageUsed: number;
+};
 
 function todayKey() {
   const d = new Date();
@@ -8,6 +16,51 @@ function todayKey() {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+async function readHistory(): Promise<DailyEntry[]> {
+  try {
+    const raw = await RNFS.readFile(HISTORY_FILE, 'utf8');
+    const arr = JSON.parse(raw) as DailyEntry[];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeHistory(entries: DailyEntry[]): Promise<void> {
+  const trimmed = entries.slice(-HISTORY_DAYS);
+  await RNFS.writeFile(HISTORY_FILE, JSON.stringify(trimmed), 'utf8');
+}
+
+export async function recordDailySnapshot(
+  freedBytes: number,
+  storageUsed: number,
+): Promise<void> {
+  const date = todayKey();
+  const history = await readHistory();
+  const existing = history.findIndex((e) => e.date === date);
+  if (existing >= 0) {
+    history[existing].freedBytes = Math.max(history[existing].freedBytes, freedBytes);
+    history[existing].storageUsed = storageUsed;
+  } else {
+    history.push({ date, freedBytes, storageUsed });
+  }
+  await writeHistory(history);
+}
+
+export async function getDailyHistory(): Promise<DailyEntry[]> {
+  const history = await readHistory();
+  const today = new Date();
+  const result: DailyEntry[] = [];
+  for (let i = HISTORY_DAYS - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const entry = history.find((e) => e.date === key);
+    result.push(entry ?? { date: key, freedBytes: 0, storageUsed: 0 });
+  }
+  return result;
 }
 
 export async function getSavedTodayBytes(): Promise<number> {

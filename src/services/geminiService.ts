@@ -1,9 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const GEMINI_API_KEY = 'Im2gK2DPRvHAQtHMQ';
-
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
 export interface ScanSummary {
   mode: string;
   itemCount: number;
@@ -11,69 +5,8 @@ export interface ScanSummary {
   sampleFiles: string[];
 }
 
-function formatBytesForPrompt(bytes: number): string {
-  if (bytes >= 1024 * 1024 * 1024)
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
-  if (bytes >= 1024 * 1024) return `${Math.round(bytes / 1024 / 1024)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
-}
-
-const MODE_LABELS: Record<string, string> = {
-  junk: 'junk/cache/temp files',
-  large: 'large unused files',
-  duplicates: 'duplicate files',
-  trash: 'trashed files',
-  empty: 'empty folders',
-  compress: 'compressible files',
-  whatsapp: 'WhatsApp cache & sent media',
-  facebook: 'Facebook cached data',
-  instagram: 'Instagram cached data',
-};
-
 export async function getEcoTip(summary: ScanSummary): Promise<string> {
-  const modeLabel = MODE_LABELS[summary.mode] || summary.mode;
-  const sizeStr = formatBytesForPrompt(summary.totalSizeBytes);
-  const fileExamples =
-    summary.sampleFiles.length > 0
-      ? `\nSample files found: ${summary.sampleFiles.slice(0, 6).join(', ')}`
-      : '';
-
-  const prompt = `You are an eco-friendly digital wellness assistant inside a phone storage cleaner app. The user just scanned their phone and found ${summary.itemCount} ${modeLabel} totaling ${sizeStr}.${fileExamples}
-
-Give a short, friendly, actionable carbon/environment saving tip (3-4 sentences max) that relates to this specific type of digital waste. Mention how digital clutter impacts energy, data centers, or the environment. Include one fun fact or stat. Keep the tone positive and motivating — like a kind friend nudging them to clean up. Do NOT use markdown formatting, bullet points, or headers — plain text only.`;
-
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-    const result = await model.generateContent(prompt);
-
-    const response = result?.response;
-    if (!response) {
-      console.warn('[GeminiService] No response object returned');
-      return getFallbackTip(summary.mode);
-    }
-
-    let text = '';
-    try {
-      text = response.text();
-    } catch (textErr) {
-      console.warn('[GeminiService] Failed to extract text:', textErr);
-      const candidate = response.candidates?.[0];
-      text = candidate?.content?.parts?.[0]?.text ?? '';
-    }
-
-    text = text.trim();
-    if (!text) {
-      console.warn('[GeminiService] Empty text response');
-      return getFallbackTip(summary.mode);
-    }
-
-    return text;
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[GeminiService] API call failed:', msg);
-    return getFallbackTip(summary.mode);
-  }
+  return getFallbackTip(summary.mode);
 }
 
 function getFallbackTip(mode: string): string {

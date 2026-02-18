@@ -1,14 +1,18 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl, Animated, StyleSheet, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Rect, Line, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useDashboard } from './DashboardContext';
 import { colors, fonts } from './styles';
+import { getDailyHistory, DailyEntry } from '../utils/savedToday';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const RING_SIZE = 140;
 const RING_STROKE = 12;
+const CHART_W = SCREEN_W - 80;
+const CHART_H = 150;
+const BAR_GAP = 6;
 
 function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
@@ -66,6 +70,85 @@ function StatRow({
   );
 }
 
+function BarChart({
+  data,
+  valueKey,
+  barColor,
+  gradId,
+  unit,
+  formatValue,
+}: {
+  data: DailyEntry[];
+  valueKey: 'freedBytes' | 'storageUsed';
+  barColor: string;
+  gradId: string;
+  unit: string;
+  formatValue: (v: number) => string;
+}) {
+  const values = data.map((d) => d[valueKey]);
+  const maxVal = Math.max(...values, 1);
+  const barW = (CHART_W - BAR_GAP * (data.length - 1)) / data.length;
+  const cornerR = Math.min(barW / 2, 6);
+
+  return (
+    <View style={st.chartWrap}>
+      <Svg width={CHART_W} height={CHART_H + 30}>
+        <Defs>
+          <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={barColor} stopOpacity="0.9" />
+            <Stop offset="1" stopColor={barColor} stopOpacity="0.3" />
+          </LinearGradient>
+        </Defs>
+        {[0.25, 0.5, 0.75, 1].map((frac) => (
+          <Line
+            key={frac}
+            x1={0}
+            y1={CHART_H * (1 - frac)}
+            x2={CHART_W}
+            y2={CHART_H * (1 - frac)}
+            stroke={colors.border}
+            strokeWidth={0.5}
+            strokeDasharray="4,4"
+          />
+        ))}
+        {values.map((v, i) => {
+          const barH = Math.max((v / maxVal) * (CHART_H - 10), 2);
+          const x = i * (barW + BAR_GAP);
+          const y = CHART_H - barH;
+          return (
+            <Rect
+              key={i}
+              x={x}
+              y={y}
+              width={barW}
+              height={barH}
+              rx={cornerR}
+              ry={cornerR}
+              fill={`url(#${gradId})`}
+            />
+          );
+        })}
+      </Svg>
+      <View style={[st.chartLabels, { width: CHART_W }]}>
+        {data.map((d, i) => {
+          const dayLabel = new Date(d.date + 'T00:00:00').toLocaleDateString('en', { weekday: 'short' });
+          return (
+            <Text key={i} style={[st.chartDayLabel, { width: barW + (i < data.length - 1 ? BAR_GAP : 0) }]}>
+              {dayLabel}
+            </Text>
+          );
+        })}
+      </View>
+      <View style={st.chartFooter}>
+        <Text style={st.chartUnit}>{unit}</Text>
+        <Text style={st.chartMax}>
+          max: {formatValue(maxVal)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function StatsScreen() {
   const {
     storage,
@@ -75,6 +158,15 @@ export default function StatsScreen() {
     refreshing,
     refreshAll,
   } = useDashboard();
+
+  const [history, setHistory] = useState<DailyEntry[]>([]);
+
+  const loadHistory = useCallback(async () => {
+    const h = await getDailyHistory();
+    setHistory(h);
+  }, []);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
 
   const total = storage?.totalBytes ?? 0;
   const used = storage?.usedBytes ?? 0;
@@ -102,7 +194,7 @@ export default function StatsScreen() {
         <ScrollView
           contentContainerStyle={st.scroll}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { refreshAll(); loadHistory(); }} tintColor={colors.accent} />}
         >
           {/* Hero Impact Card */}
           <FadeIn delay={50}>
@@ -170,8 +262,58 @@ export default function StatsScreen() {
             </View>
           </FadeIn>
 
-          {/* Environment Section */}
+          {/* Daily Carbon Freed Graph */}
+          <FadeIn delay={200}>
+            <Text style={st.sectionTitle}>Daily Carbon Freed</Text>
+            <View style={st.chartCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+                <View style={[st.chartBadge, { backgroundColor: 'rgba(130,177,255,0.12)' }]}>
+                  <MaterialCommunityIcons name="molecule-co2" size={14} color="#82b1ff" />
+                </View>
+                <Text style={st.chartCardTitle}>CO2 Saved (last 7 days)</Text>
+              </View>
+              {history.length > 0 ? (
+                <BarChart
+                  data={history}
+                  valueKey="freedBytes"
+                  barColor="#82b1ff"
+                  gradId="co2Grad"
+                  unit="CO2"
+                  formatValue={(v) => formatCO2(v)}
+                />
+              ) : (
+                <Text style={st.chartEmpty}>No data yet. Clean files to start tracking.</Text>
+              )}
+            </View>
+          </FadeIn>
+
+          {/* Daily Storage Freed Graph */}
           <FadeIn delay={250}>
+            <Text style={st.sectionTitle}>Daily Storage Freed</Text>
+            <View style={st.chartCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+                <View style={[st.chartBadge, { backgroundColor: 'rgba(92,235,107,0.12)' }]}>
+                  <MaterialCommunityIcons name="harddisk" size={14} color={colors.accent} />
+                </View>
+                <Text style={st.chartCardTitle}>Space Freed (last 7 days)</Text>
+              </View>
+              {history.length > 0 ? (
+                <BarChart
+                  data={history}
+                  valueKey="freedBytes"
+                  barColor={colors.accent}
+                  gradId="storageGrad"
+                  unit="Storage"
+                  formatValue={(v) => formatSize(v)}
+                />
+              ) : (
+                <Text style={st.chartEmpty}>No data yet. Clean files to start tracking.</Text>
+              )}
+            </View>
+          </FadeIn>
+
+          {/* Environment Section */}
+          <FadeIn delay={350}>
             <Text style={st.sectionTitle}>Environmental Impact</Text>
             <View style={st.sectionCard}>
               <StatRow icon="molecule-co2" iconColor="#82b1ff" label="CO2 from stored data" value={co2Used} />
@@ -181,7 +323,7 @@ export default function StatsScreen() {
           </FadeIn>
 
           {/* Storage Section */}
-          <FadeIn delay={350}>
+          <FadeIn delay={450}>
             <Text style={st.sectionTitle}>Storage Details</Text>
             <View style={st.sectionCard}>
               <StatRow icon="harddisk" iconColor={colors.accent} label="Total Storage" value={formatSize(total)} />
@@ -191,7 +333,7 @@ export default function StatsScreen() {
           </FadeIn>
 
           {/* Apps Section */}
-          <FadeIn delay={450}>
+          <FadeIn delay={550}>
             <Text style={st.sectionTitle}>App Health</Text>
             <View style={st.sectionCard}>
               <StatRow
@@ -389,5 +531,61 @@ const st = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontFamily: fonts.semiBold,
+  },
+
+  chartCard: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chartBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartCardTitle: {
+    color: colors.text,
+    fontSize: 13,
+    fontFamily: fonts.semiBold,
+  },
+  chartWrap: {
+    alignItems: 'center',
+  },
+  chartLabels: {
+    flexDirection: 'row',
+    marginTop: 6,
+  },
+  chartDayLabel: {
+    color: colors.textDim,
+    fontSize: 9,
+    fontFamily: fonts.medium,
+    textAlign: 'center',
+  },
+  chartFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 8,
+  },
+  chartUnit: {
+    color: colors.textDim,
+    fontSize: 10,
+    fontFamily: fonts.medium,
+  },
+  chartMax: {
+    color: colors.textDim,
+    fontSize: 10,
+    fontFamily: fonts.medium,
+  },
+  chartEmpty: {
+    color: colors.textDim,
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 });

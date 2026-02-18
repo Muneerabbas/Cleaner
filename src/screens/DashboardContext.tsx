@@ -11,7 +11,7 @@ import {
   StorageStats,
 } from '../native/deviceStats';
 import { clearAppJunk } from '../utils/cache';
-import { addSavedTodayBytes, updateSavedTodayFromStorage } from '../utils/savedToday';
+import { addSavedTodayBytes, updateSavedTodayFromStorage, recordDailySnapshot } from '../utils/savedToday';
 
 type AppStorage = {
   appName: string;
@@ -80,6 +80,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       setStorage(stats);
       setUsageAccess(hasAccess);
       setSavedTodayBytes(saved);
+
+      recordDailySnapshot(saved, stats.usedBytes).catch(() => {});
 
       if (hasAccess) {
         const apps = await getUnusedApps(30);

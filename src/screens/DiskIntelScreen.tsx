@@ -2,7 +2,9 @@ import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   ScrollView,
+  StyleSheet,
   Switch,
   Text,
   TextInput,
@@ -12,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, fonts, styles } from './styles';
 import { diskIntelApi } from '../services/diskIntelApi';
 
@@ -22,6 +25,36 @@ function toNumber(value: string): number | undefined {
 
 export default function DiskIntelScreen() {
   const navigation = useNavigation();
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [qrOpen, setQrOpen] = useState(false);
+  const [scanned, setScanned] = useState(false);
+
+  const openQrScanner = async () => {
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        Alert.alert('Permission Denied', 'Camera permission is required to scan QR codes.');
+        return;
+      }
+    }
+    setScanned(false);
+    setQrOpen(true);
+  };
+
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+    setQrOpen(false);
+
+    const trimmed = data.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      setBaseUrl(trimmed);
+      diskIntelApi.setBaseUrl(trimmed);
+      Alert.alert('Connected', `API URL set to:\n${trimmed}`);
+    } else {
+      Alert.alert('Invalid QR', 'QR code does not contain a valid URL.\nExpected: http://... or https://...');
+    }
+  };
 
   const [baseUrl, setBaseUrl] = useState(diskIntelApi.getBaseUrl());
   const [rootPath, setRootPath] = useState('/home/manas/Documents/Cleaner');
@@ -215,9 +248,18 @@ export default function DiskIntelScreen() {
                 paddingVertical: 10,
               }}
             />
-            <TouchableOpacity style={[styles.scanButton, { marginTop: 10, marginBottom: 0 }]} onPress={applyBaseUrl}>
-              <Text style={styles.scanButtonText}>Apply API URL</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <TouchableOpacity style={[styles.scanButton, { flex: 1, marginTop: 0, marginBottom: 0 }]} onPress={applyBaseUrl}>
+                <Text style={styles.scanButtonText}>Apply URL</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.scanButton, { flex: 1, marginTop: 0, marginBottom: 0, backgroundColor: '#82b1ff' }]}
+                onPress={openQrScanner}
+              >
+                <MaterialCommunityIcons name="qrcode-scan" size={16} color={colors.bg} />
+                <Text style={styles.scanButtonText}>Scan QR</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.statsCard}>
@@ -434,6 +476,91 @@ export default function DiskIntelScreen() {
           </View>
         </ScrollView>
       </View>
+
+      {/* QR Scanner Modal */}
+      <Modal visible={qrOpen} animationType="slide" onRequestClose={() => setQrOpen(false)}>
+        <View style={qr.container}>
+          <CameraView
+            style={qr.camera}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          />
+          <View style={qr.overlay}>
+            <View style={qr.topBar}>
+              <TouchableOpacity onPress={() => setQrOpen(false)} style={qr.closeBtn}>
+                <MaterialCommunityIcons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+              <Text style={qr.title}>Scan Server QR Code</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <View style={qr.finderArea}>
+              <View style={qr.finderBox}>
+                <View style={[qr.corner, qr.topLeft]} />
+                <View style={[qr.corner, qr.topRight]} />
+                <View style={[qr.corner, qr.bottomLeft]} />
+                <View style={[qr.corner, qr.bottomRight]} />
+              </View>
+              <Text style={qr.hint}>Point at a QR code with your server URL</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const qr = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000' },
+  camera: { flex: 1 },
+  overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'space-between' },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 54,
+    paddingBottom: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: fonts.semiBold,
+  },
+  finderArea: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finderBox: {
+    width: 240,
+    height: 240,
+    position: 'relative',
+  },
+  corner: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderColor: colors.accent,
+  },
+  topLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 12 },
+  topRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 12 },
+  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 12 },
+  bottomRight: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 12 },
+  hint: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontFamily: fonts.medium,
+    marginTop: 24,
+    textAlign: 'center',
+  },
+});
