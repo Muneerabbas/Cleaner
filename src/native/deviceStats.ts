@@ -52,3 +52,51 @@ export const getUnusedApps = (days: number): Promise<UnusedApp[]> => {
 export const getAppsStorage = (): Promise<AppStorage[]> => {
   return DeviceStats.getAppsStorage();
 };
+
+export type BatteryInfo = {
+  level: number;
+  isCharging: boolean;
+  health: string;
+  temperature: number;
+  plugType: string;
+};
+
+export type MemoryInfo = {
+  totalRam: number;
+  availableRam: number;
+  usedRam: number;
+  lowMemory: boolean;
+};
+
+export type DataUsage = {
+  mobileReceived: number;
+  mobileSent: number;
+  mobileTotal: number;
+  wifiReceived: number;
+  wifiSent: number;
+  wifiTotal: number;
+  totalReceived: number;
+  totalSent: number;
+  totalData: number;
+};
+
+export const getBatteryInfo = (): Promise<BatteryInfo> => {
+  if (!DeviceStats?.getBatteryInfo) {
+    return Promise.reject(new Error('getBatteryInfo not available on native module'));
+  }
+  return DeviceStats.getBatteryInfo();
+};
+
+export const getMemoryInfo = (): Promise<MemoryInfo> => {
+  if (!DeviceStats?.getMemoryInfo) {
+    return Promise.reject(new Error('getMemoryInfo not available on native module'));
+  }
+  return DeviceStats.getMemoryInfo();
+};
+
+export const getDataUsage = (): Promise<DataUsage> => {
+  if (!DeviceStats?.getDataUsage) {
+    return Promise.reject(new Error('getDataUsage not available on native module'));
+  }
+  return DeviceStats.getDataUsage();
+};

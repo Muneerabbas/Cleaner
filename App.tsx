@@ -15,6 +15,9 @@ import StatsScreen from './src/screens/StatsScreen';
 import CleanerHomeScreen from './src/screens/CleanerHomeScreen';
 import CleanerListScreen from './src/screens/CleanerListScreen';
 import DiskIntelScreen from './src/screens/DiskIntelScreen';
+import SocialCleanerScreen from './src/screens/SocialCleanerScreen';
+import StorageBreakdownScreen from './src/screens/StorageBreakdownScreen';
+import SystemBoosterScreen from './src/screens/SystemBoosterScreen';
 import DriveScreen from './src/screens/DriveScreen';
 import { DashboardProvider } from './src/screens/DashboardContext';
 import { colors, fonts } from './src/screens/styles';
@@ -33,6 +36,8 @@ function HomeNavigator() {
   return (
     <HomeStack.Navigator screenOptions={{ headerShown: false }}>
       <HomeStack.Screen name="HomeMain" component={HomeScreen} />
+      <HomeStack.Screen name="StorageBreakdown" component={StorageBreakdownScreen} />
+      <HomeStack.Screen name="SystemBooster" component={SystemBoosterScreen} />
       <HomeStack.Screen name="ConnectedDevices" component={ConnectedDevicesScreen} />
       <HomeStack.Screen name="DeviceAction" component={DeviceActionScreen} />
       <HomeStack.Screen name="ServerQrScanner" component={ServerQrScannerScreen} />
@@ -46,6 +51,7 @@ function CleanerNavigator() {
       <CleanerStack.Screen name="CleanerHome" component={CleanerHomeScreen} />
       <CleanerStack.Screen name="CleanerList" component={CleanerListScreen} />
       <CleanerStack.Screen name="DiskIntel" component={DiskIntelScreen} />
+      <CleanerStack.Screen name="SocialCleaner" component={SocialCleanerScreen} />
       <CleanerStack.Screen name="DeviceAction" component={DeviceActionScreen} />
     </CleanerStack.Navigator>
   );
@@ -61,18 +67,33 @@ const TAB_ICONS: Record<string, { focused: string; unfocused: string }> = {
 
 function Tabs() {
   const insets = useSafeAreaInsets();
+  const bottomOffset = Math.max(insets.bottom, 8);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
+          position: 'absolute',
+          bottom: bottomOffset,
+          left: 16,
+          right: 16,
+          height: 64,
           backgroundColor: colors.card,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: 60 + insets.bottom,
-          paddingBottom: insets.bottom > 0 ? insets.bottom : 6,
-          paddingTop: 6,
-          elevation: 0,
+          borderRadius: 22,
+          borderTopWidth: 0,
+          borderWidth: 1,
+          borderColor: colors.border,
+          paddingBottom: 0,
+          paddingTop: 0,
+          elevation: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+        },
+        tabBarItemStyle: {
+          paddingTop: 8,
+          paddingBottom: 6,
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textDim,
@@ -82,10 +103,10 @@ function Tabs() {
           const name = focused ? icons.focused : icons.unfocused;
           return (
             <View style={focused ? {
-              backgroundColor: 'rgba(92, 235, 107, 0.12)',
-              borderRadius: 10,
-              paddingHorizontal: 12,
-              paddingVertical: 4,
+              backgroundColor: 'rgba(92, 235, 107, 0.14)',
+              borderRadius: 12,
+              paddingHorizontal: 14,
+              paddingVertical: 5,
             } : undefined}>
               <MaterialCommunityIcons name={name as any} size={22} color={color} />
             </View>

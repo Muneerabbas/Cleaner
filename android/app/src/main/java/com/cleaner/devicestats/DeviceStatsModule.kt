@@ -1,16 +1,20 @@
 package com.cleaner.devicestats
 
+import android.app.ActivityManager
 import android.app.AppOpsManager
 import android.app.usage.StorageStatsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
+import android.net.TrafficStats
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
 import android.os.Process
@@ -136,17 +140,26 @@ class DeviceStatsModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun openAppUninstall(packageName: String) {
         try {
-            val intent = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+            val intent = Intent(Intent.ACTION_DELETE).apply {
                 data = Uri.parse("package:$packageName")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra(Intent.EXTRA_RETURN_RESULT, true)
             }
             startIntent(intent)
         } catch (e: Exception) {
-            Log.e(TAG, "openAppUninstall error", e)
+            Log.e(TAG, "openAppUninstall ACTION_DELETE error", e)
             try {
-                // Fallback: open app details so user can uninstall manually.
-                openAppInfo(packageName)
-            } catch (_: Exception) {
+                @Suppress("DEPRECATION")
+                val fallback = Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+                    data = Uri.parse("package:$packageName")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startIntent(fallback)
+            } catch (e2: Exception) {
+                Log.e(TAG, "openAppUninstall fallback error", e2)
+                try {
+                    openAppInfo(packageName)
+                } catch (_: Exception) {}
             }
         }
     }
@@ -300,6 +313,118 @@ class DeviceStatsModule(reactContext: ReactApplicationContext) :
             out
         } catch (_: Exception) {
             out
+        }
+    }
+
+    // ───── Battery Info ─────
+
+    @ReactMethod
+    fun getBatteryInfo(promise: Promise) {
+        try {
+            val ctx = reactApplicationContext
+            val intentFilter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+            val batteryStatus = ctx.registerReceiver(null, intentFilter)
+
+            val map = Arguments.createMap()
+
+            if (batteryStatus != null) {
+                val level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                val pct = if (level >= 0 && scale > 0) (level * 100) / scale else -1
+                map.putInt("level", pct)
+
+                val status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                        status == BatteryManager.BATTERY_STATUS_FULL
+                map.putBoolean("isCharging", isCharging)
+
+                val health = batteryStatus.getIntExtra(BatteryManager.EXTRA_HEALTH, -1)
+                val healthStr = when (health) {
+                    BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+                    BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheat"
+                    BatteryManager.BATTERY_HEALTH_DEAD -> "Dead"
+                    BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over Voltage"
+                    BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
+                    else -> "Unknown"
+                }
+                map.putString("health", healthStr)
+
+                val temp = batteryStatus.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1)
+                if (temp > 0) {
+                    map.putDouble("temperature", temp / 10.0)
+                } else {
+                    map.putDouble("temperature", -1.0)
+                }
+
+                val plugged = batteryStatus.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1)
+                val plugStr = when (plugged) {
+                    BatteryManager.BATTERY_PLUGGED_AC -> "AC"
+                    BatteryManager.BATTERY_PLUGGED_USB -> "USB"
+                    BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Wireless"
+                    else -> "Not Plugged"
+                }
+                map.putString("plugType", plugStr)
+            } else {
+                map.putInt("level", -1)
+                map.putBoolean("isCharging", false)
+                map.putString("health", "Unknown")
+                map.putDouble("temperature", -1.0)
+                map.putString("plugType", "Unknown")
+            }
+
+            promise.resolve(map)
+        } catch (e: Exception) {
+            Log.e(TAG, "getBatteryInfo error", e)
+            promise.reject("BATTERY_ERROR", e.message, e)
+        }
+    }
+
+    // ───── Memory Info ─────
+
+    @ReactMethod
+    fun getMemoryInfo(promise: Promise) {
+        try {
+            val activityManager = reactApplicationContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memInfo = ActivityManager.MemoryInfo()
+            activityManager.getMemoryInfo(memInfo)
+
+            val map = Arguments.createMap()
+            map.putDouble("totalRam", memInfo.totalMem.toDouble())
+            map.putDouble("availableRam", memInfo.availMem.toDouble())
+            map.putDouble("usedRam", (memInfo.totalMem - memInfo.availMem).toDouble())
+            map.putBoolean("lowMemory", memInfo.lowMemory)
+            promise.resolve(map)
+        } catch (e: Exception) {
+            Log.e(TAG, "getMemoryInfo error", e)
+            promise.reject("MEMORY_ERROR", e.message, e)
+        }
+    }
+
+    // ───── Data Usage ─────
+
+    @ReactMethod
+    fun getDataUsage(promise: Promise) {
+        try {
+            val map = Arguments.createMap()
+            val mobileRx = TrafficStats.getMobileRxBytes()
+            val mobileTx = TrafficStats.getMobileTxBytes()
+            val totalRx = TrafficStats.getTotalRxBytes()
+            val totalTx = TrafficStats.getTotalTxBytes()
+
+            map.putDouble("mobileReceived", mobileRx.toDouble())
+            map.putDouble("mobileSent", mobileTx.toDouble())
+            map.putDouble("mobileTotal", (mobileRx + mobileTx).toDouble())
+            map.putDouble("wifiReceived", (totalRx - mobileRx).coerceAtLeast(0).toDouble())
+            map.putDouble("wifiSent", (totalTx - mobileTx).coerceAtLeast(0).toDouble())
+            map.putDouble("wifiTotal", ((totalRx - mobileRx) + (totalTx - mobileTx)).coerceAtLeast(0).toDouble())
+            map.putDouble("totalReceived", totalRx.toDouble())
+            map.putDouble("totalSent", totalTx.toDouble())
+            map.putDouble("totalData", (totalRx + totalTx).toDouble())
+
+            promise.resolve(map)
+        } catch (e: Exception) {
+            Log.e(TAG, "getDataUsage error", e)
+            promise.reject("DATA_USAGE_ERROR", e.message, e)
         }
     }
 
