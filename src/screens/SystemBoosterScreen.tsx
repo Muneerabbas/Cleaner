@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
+  ScrollView,
   TouchableOpacity,
   Animated,
   Easing,
@@ -317,7 +318,10 @@ export default function SystemBoosterScreen() {
         </View>
 
         {/* Main Content */}
-        <View style={s.content}>
+        <ScrollView
+          contentContainerStyle={s.content}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Ring + Button */}
           <View style={s.ringArea}>
             <RippleRing active={phase !== 'idle' && phase !== 'done'} />
@@ -434,7 +438,7 @@ export default function SystemBoosterScreen() {
               <Text style={s.againBtnText}>Boost Again</Text>
             </TouchableOpacity>
           )}
-        </View>
+        </ScrollView>
       </Animated.View>
     </SafeAreaView>
   );
@@ -457,9 +461,9 @@ const s = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingBottom: 120,
   },
   ringArea: {
     width: RING_SIZE + 60,
